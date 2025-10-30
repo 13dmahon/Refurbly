@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Refurbly</string>
+    <string name="title_activity_main">Refurbly</string>
+    <string name="package_name">com.refurbly.app</string>
+    <string name="custom_url_scheme">com.refurbly.app</string>
+</resources>
