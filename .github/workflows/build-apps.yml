@@ -105,7 +105,6 @@ jobs:
 
           mkdir -p "$HOME/certs" "$HOME/profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          # cert + profile from secrets
           echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
           echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
 
@@ -115,7 +114,7 @@ jobs:
           /usr/bin/security create-keychain -p "" "$KEYCHAIN_PATH"
           /usr/bin/security set-keychain-settings "$KEYCHAIN_PATH"
           /usr/bin/security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" "$HOME/Library/Keychains/login.keychain-db"
           /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
 
           /usr/bin/security import "$HOME/certs/dist.p12" \
@@ -124,24 +123,21 @@ jobs:
 
           /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
 
-          # decode profile to pull UUID & Name and confirm bundle/team
           PROFILE_PLIST=$(mktemp)
           /usr/bin/security cms -D -i "$HOME/profiles/AppStore.mobileprovision" > "$PROFILE_PLIST"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
           APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
           BUNDLE_ID_IN_PROFILE="${APP_ID#${TEAM_ID}.}"
-          TYPE=$(/usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$PROFILE_PLIST" 2>/dev/null || echo "false")
 
           echo "Profile summary:"
           echo "  Name:        $PROFILE_NAME"
           echo "  UUID:        $PROFILE_UUID"
           echo "  App ID:      $APP_ID"
           echo "  Bundle ID:   $BUNDLE_ID_IN_PROFILE"
-          echo "  Is Enterprise (all devices): $TYPE"
 
           if [ "$BUNDLE_ID_IN_PROFILE" != "$BUNDLE_ID" ]; then
-            echo "::error::Provisioning profile bundle id ($BUNDLE_ID_IN_PROFILE) does not match expected ($BUNDLE_ID)"
+            echo "::error::Profile bundle id mismatch"
             exit 1
           fi
 
@@ -154,6 +150,7 @@ jobs:
             echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
           } >> "$GITHUB_ENV"
 
+      # --- VERIFY SIGNING CONFIG ---------------------------------------------
       - name: Show signing build settings
         working-directory: ios/App
         run: |
@@ -161,19 +158,19 @@ jobs:
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App \
             | egrep 'CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
 
-      # --- Optional: bump iOS build number (helps avoid build-number collisions)
+      # --- FIXED PLIST PATH ---------------------------------------------------
       - name: Bump iOS build number (CFBundleVersion)
         working-directory: ios/App
         shell: bash
         run: |
           set -euo pipefail
-          PLIST="App/App/Info.plist"
+          PLIST="App/Info.plist"
           NEW_BUILD=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST" || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $NEW_BUILD" "$PLIST"
           echo "Set CFBundleVersion=$NEW_BUILD in $PLIST"
 
-      # --- ARCHIVE (signed with Apple Distribution + profile *name*) ----------
+      # --- ARCHIVE -----------------------------------------------------------
       - name: Build archive
         working-directory: ios/App
         shell: bash
@@ -182,7 +179,6 @@ jobs:
           echo 'EXCLUDED_ARCHS=""' >> build.xcconfig
           echo 'ARCHS=$(ARCHS_STANDARD)' >> build.xcconfig
           echo 'BUILD_LIBRARY_FOR_DISTRIBUTION=YES' >> build.xcconfig
-          echo 'OTHER_SWIFT_FLAGS=$(inherited) -no-verify-emitted-module-interface' >> build.xcconfig
 
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
@@ -194,33 +190,32 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
-            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution" \
+            "CODE_SIGN_IDENTITY=Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=YES \
-            "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]=NO" \
-            -allowProvisioningUpdates
+            "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]=NO"
 
-      - name: List signing identities in build keychain
-        shell: bash
-        run: |
-          set -euxo pipefail
-          security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
-
-      - name: Inspect archive metadata
+      # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
+      - name: Check archive signing
         working-directory: ios/App
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE="$PWD/build/App.xcarchive"
-          echo "Archive Info.plist keys:"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$ARCHIVE/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$ARCHIVE/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:SigningIdentity' "$ARCHIVE/Info.plist" || true
-          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE/Info.plist" || true
-          /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier' "$ARCHIVE/Info.plist" || true
+          APP="$PWD/build/App.xcarchive/Products/Applications/App.app"
+          if [ ! -f "$APP/embedded.mobileprovision" ]; then
+            echo "::error::embedded.mobileprovision missing!"
+            exit 1
+          fi
+          echo "Codesign dump:"
+          /usr/bin/codesign -dv --verbose=2 "$APP" 2>&1 | egrep 'Authority|TeamIdentifier'
+          echo "Embedded App ID:"
+          /usr/bin/security cms -D -i "$APP/embedded.mobileprovision" \
+            | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin
 
+      # --- EXPORT IPA --------------------------------------------------------
       - name: Export IPA via xcodebuild
         working-directory: ios/App
         shell: bash
@@ -231,8 +226,14 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>method</key><string>app-store-connect</string>
+            <key>method</key><string>app-store</string>
             <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
@@ -247,7 +248,7 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             2>&1 | tee export.log
 
-
+      # --- UPLOAD EXPORT LOGS ALWAYS -----------------------------------------
       - name: Upload Xcode export logs (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -259,7 +260,7 @@ jobs:
             ~/Library/Logs/xcdistributionlogs/**/*.log
           if-no-files-found: ignore
 
-      # --- VERIFY SIGNATURE AFTER EXPORT -------------------------------------
+      # --- VERIFY IPA SIGNATURE ----------------------------------------------
       - name: Verify exported app signature
         working-directory: ios/App
         shell: bash
@@ -267,16 +268,13 @@ jobs:
           set -euxo pipefail
           APP_PATH="$(/usr/bin/find build/export -name 'App.app' -path '*/Payload/*' -print -quit)"
           if [ -z "${APP_PATH:-}" ]; then
-            echo "::error::No App.app found in export. See xcode-export-logs artifact."
+            echo "::error::No App.app found in export. See export.log."
             exit 1
           fi
           /usr/bin/codesign --verify --deep --strict "$APP_PATH"
-          /usr/bin/codesign -dv --verbose=2 "$APP_PATH" || true
-          echo "----- Entitlements -----"
-          /usr/bin/codesign -d --entitlements :- "$APP_PATH" 2>/dev/null || true
-          echo "----- Embedded Profile App ID -----"
+          /usr/bin/codesign -dv --verbose=2 "$APP_PATH"
           /usr/bin/security cms -D -i "$APP_PATH/embedded.mobileprovision" \
-            | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin || true
+            | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin
 
       # --- UPLOAD TO TESTFLIGHT ----------------------------------------------
       - name: Upload to TestFlight
@@ -291,7 +289,6 @@ jobs:
           mkdir -p "$HOME/.private_keys"
           KEY_PATH="$HOME/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
 
-          # raw PEM or base64: both supported
           if printf '%s' "$ASC_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
             printf '%s' "$ASC_API_KEY_P8" > "$KEY_PATH"
           else
@@ -299,11 +296,10 @@ jobs:
           fi
           tr -d '\r' < "$KEY_PATH" > "${KEY_PATH}.tmp" && mv "${KEY_PATH}.tmp" "$KEY_PATH"
           chmod 600 "$KEY_PATH"
-          head -n1 "$KEY_PATH" | grep -q "BEGIN PRIVATE KEY"
 
           IPA_PATH="$(/usr/bin/find build/export -name '*.ipa' -print -quit)"
           if [ -z "${IPA_PATH:-}" ]; then
-            echo "::error::No .ipa produced. See xcode-export-logs artifact."
+            echo "::error::No IPA found to upload. Check export step."
             exit 1
           fi
 
@@ -313,10 +309,10 @@ jobs:
             --file "$IPA_PATH" \
             --apiKey "$ASC_API_KEY_ID" \
             --apiIssuer "$ASC_API_ISSUER_ID"
-          ALSTATUS=$?
+          STATUS=$?
           set -e
-          if [ $ALSTATUS -ne 0 ]; then
-            echo "altool failed ($ALSTATUS). Retrying with iTMSTransporter..."
+          if [ $STATUS -ne 0 ]; then
+            echo "altool failed ($STATUS). Retrying with iTMSTransporter..."
             xcrun iTMSTransporter -m upload -assetFile "$IPA_PATH" \
               -apiKey "$ASC_API_KEY_ID" -apiIssuer "$ASC_API_ISSUER_ID" -verbose
           fi
