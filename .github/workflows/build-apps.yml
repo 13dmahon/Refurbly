@@ -141,8 +141,8 @@ jobs:
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
 
-      # --- ARCHIVE ------------------------------------------------------------
-      - name: Build archive (manual signing for App target only)
+      # --- ARCHIVE (SIGNED WITH APPLE DISTRIBUTION) ---------------------------
+      - name: Build archive
         working-directory: ios/App
         shell: bash
         run: |
@@ -173,24 +173,18 @@ jobs:
         shell: bash
         run: security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
 
-      # --- EXPORT (Xcode signs the .ipa here) --------------------------------
+      # --- EXPORT (let Xcode use archive's signatures) ------------------------
       - name: Export IPA via xcodebuild
         working-directory: ios/App
         shell: bash
         run: |
           set -euo pipefail
-          cat > ExportOptions.plist <<EOF
+          cat > ExportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>method</key><string>app-store</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
-            </dict>
+            <key>method</key><string>app-store-connect</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
@@ -202,7 +196,8 @@ jobs:
             -archivePath "$PWD/build/App.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$PWD/build/export" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            -allowProvisioningUpdates
 
       # --- VERIFY SIGNATURE AFTER EXPORT -------------------------------------
       - name: Verify exported app signature
@@ -229,7 +224,6 @@ jobs:
           mkdir -p "$HOME/.private_keys"
           KEY_PATH="$HOME/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
 
-          # Write the .p8: accept raw PEM or base64
           if printf '%s' "$ASC_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
             printf '%s' "$ASC_API_KEY_P8" > "$KEY_PATH"
           else
