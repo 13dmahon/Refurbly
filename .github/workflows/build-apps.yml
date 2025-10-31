@@ -77,19 +77,25 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
-      # ---- SANITY CHECK: verify the P12 + password are correct on the runner ----
-      - name: Sanity check P12 password (no private key output)
+      # ---- 1) Sanity check P12 + password on the runner ----
+      - name: Sanity check P12 password
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
           IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "$IOS_CERT_P12" | base64 -d > /tmp/dist.p12
+          # macOS base64 decode flag is -D (capital D)
+          echo "$IOS_CERT_P12" | /usr/bin/base64 -D > /tmp/dist.p12
+          # Show sizes to debug copy/paste issues
+          echo "B64 chars: $(echo -n "$IOS_CERT_P12" | wc -c)"
+          echo "P12 bytes: $(wc -c < /tmp/dist.p12)"
+          # This fails if password/file are wrong
           /usr/bin/openssl pkcs12 -in /tmp/dist.p12 \
             -passin pass:"$IOS_CERT_P12_PASSWORD" \
             -nokeys -clcerts -info -noout
 
+      # ---- 2) Install signing assets into a temporary keychain ----
       - name: Install signing assets
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -99,14 +105,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p ~/certs ~/profiles ~/.private_keys \
+          mkdir -p "$HOME/certs" "$HOME/profiles" \
                    "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          # Write secrets -> files
-          echo "$IOS_CERT_P12" | base64 -d > ~/certs/dist.p12
-          echo "$IOS_PROFILE_APPSTORE" | base64 -d > ~/profiles/AppStore.mobileprovision
+          # Decode secrets (macOS: -D)
+          echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
+          echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
 
-          # Create & use a dedicated keychain
           KEYCHAIN=build.keychain
           security create-keychain -p "" "$KEYCHAIN"
           security set-keychain-settings "$KEYCHAIN"
@@ -114,20 +119,19 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN" login.keychain
           security default-keychain -s "$KEYCHAIN"
 
-          # Import the Distribution cert
-          security import ~/certs/dist.p12 -k "$KEYCHAIN" \
+          # Import certificate
+          security import "$HOME/certs/dist.p12" -k "$KEYCHAIN" \
             -P "$IOS_CERT_P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
 
-          # Read profile metadata (UUID/Name/BID) and install profile
+          # Read profile metadata and install by UUID
           PROFILE_PLIST=$(mktemp)
-          /usr/bin/security cms -D -i ~/profiles/AppStore.mobileprovision > "$PROFILE_PLIST"
+          /usr/bin/security cms -D -i "$HOME/profiles/AppStore.mobileprovision" > "$PROFILE_PLIST"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
           BID_WITH_TEAM=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
           BUNDLE_ID_IN_PROFILE="${BID_WITH_TEAM#${TEAM_ID}.}"
-
-          cp ~/profiles/AppStore.mobileprovision \
+          cp "$HOME/profiles/AppStore.mobileprovision" \
              "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
 
           echo "Using Provisioning Profile:"
@@ -170,7 +174,7 @@ jobs:
             <key>signingStyle</key><string>manual</string>
             <key>stripSwiftSymbols</key><true/>
             <key>compileBitcode</key><false/>
-            <key>teamID</key><string>CR4TKVT3QV</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
@@ -179,7 +183,6 @@ jobs:
           </dict>
           </plist>
           EOF
-
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/App.xcarchive" \
             -exportPath "$PWD/build/export" \
