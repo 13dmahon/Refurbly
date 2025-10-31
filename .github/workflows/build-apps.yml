@@ -27,7 +27,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build web app
         run: npm run build
@@ -118,7 +118,7 @@ jobs:
           /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Import certificate
+          # Import distribution certificate
           /usr/bin/security import "$HOME/certs/dist.p12" \
             -k "$KEYCHAIN_PATH" \
             -f pkcs12 \
@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           echo "🛠 Applying CI-specific Xcode fixes..."
-          # Prevent missing Capacitor.framework binary during archive
+          # Keep frameworks building as distributable and fix ARCHS when archiving on CI
           echo "EXCLUDED_ARCHS=\"\"" >> build.xcconfig
           echo "ARCHS=\$(ARCHS_STANDARD)" >> build.xcconfig
           echo "BUILD_LIBRARY_FOR_DISTRIBUTION=YES" >> build.xcconfig
@@ -192,8 +192,6 @@ jobs:
             "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]=" \
             -allowProvisioningUpdates
 
-
-
       # (Optional) Prove the Apple Distribution cert is in our temp keychain
       - name: List signing identities in build keychain
         shell: bash
@@ -209,15 +207,11 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <!-- Use modern method; lets Xcode pick "Apple Distribution" automatically -->
             <key>method</key><string>app-store-connect</string>
-
             <key>signingStyle</key><string>manual</string>
             <key>stripSwiftSymbols</key><true/>
             <key>compileBitcode</key><false/>
             <key>teamID</key><string>${TEAM_ID}</string>
-
-            <!-- Map bundle id -> profile name that we installed -->
             <key>provisioningProfiles</key>
             <dict>
               <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
@@ -231,9 +225,6 @@ jobs:
             -exportPath "$PWD/build/export" \
             -exportOptionsPlist ExportOptions.plist
 
-
-
-      # 5) Upload to TestFlight
       - name: Upload to TestFlight
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
@@ -250,7 +241,6 @@ jobs:
             --apiKey $ASC_API_KEY_ID \
             --apiIssuer $ASC_API_ISSUER_ID
 
-      # 6) Save IPA as artifact
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
         with:
