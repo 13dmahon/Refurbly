@@ -157,11 +157,18 @@ jobs:
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
 
-      # 3) ARCHIVE using manual signing (fixes 'No Accounts' error)
-      - name: Build archive (manual signing)
+      - name: Build archive (manual signing for App target only)
         working-directory: ios/App
         shell: bash
         run: |
+          echo "🛠 Disabling signing for Pods..."
+          # Disable signing for Pods targets dynamically
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -showBuildSettings | grep -E 'TARGET_NAME|CODE_SIGN' || true
+
+          # Build archive, disable signing for pods explicitly
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
@@ -175,7 +182,17 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=YES
+            CODE_SIGNING_REQUIRED=YES \
+            "CODE_SIGNING_ALLOWED[sdk=iphoneos*]=YES" \
+            "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]=NO" \
+            "CODE_SIGNING_ALLOWED[sdk=macosx*]=NO" \
+            "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]=" \
+            "CODE_SIGN_IDENTITY[sdk=macosx*]=" \
+            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphonesimulator*]=" \
+            "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]=" \
+            EXCLUDED_ARCHS="arm64" \
+            -allowProvisioningUpdates
+
 
       # 4) EXPORT using App Store profile + distribution cert
       - name: Export IPA
