@@ -9,50 +9,53 @@ jobs:
   build-android:
     name: Build Android
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          
+
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
-          
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        
+
       - name: Install dependencies
         run: npm install
-        
+
       - name: Build web app
         run: npm run build
-        
+
       - name: Sync Capacitor
         run: npx cap sync android
-        
+
       - name: Make gradlew executable
         working-directory: android
         run: chmod +x gradlew
-        
+
       - name: Build Android APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
-        
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: android/app/build/outputs/apk/release/*.apk
-          
+
   build-ios:
     name: Build & Upload iOS (TestFlight)
     runs-on: macos-latest
+
+    env:
+      BUNDLE_ID: com.refurbly.app
+      TEAM_ID: CR4TKVT3QV
 
     steps:
       - uses: actions/checkout@v4
@@ -71,41 +74,92 @@ jobs:
         run: npx cap sync ios
 
       - name: Install CocoaPods
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      # ---- SANITY CHECK: verify the P12 + password are correct on the runner ----
+      - name: Sanity check P12 password (no private key output)
+        env:
+          IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
+          IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
+        shell: bash
         run: |
-          cd ios/App
-          pod install --repo-update
+          set -euo pipefail
+          echo "$IOS_CERT_P12" | base64 -d > /tmp/dist.p12
+          /usr/bin/openssl pkcs12 -in /tmp/dist.p12 \
+            -passin pass:"$IOS_CERT_P12_PASSWORD" \
+            -nokeys -clcerts -info -noout
 
       - name: Install signing assets
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
           IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
           IOS_PROFILE_APPSTORE: ${{ secrets.IOS_PROFILE_APPSTORE }}
+        shell: bash
         run: |
-          mkdir -p ~/certs ~/profiles ~/.private_keys ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$IOS_CERT_P12" | base64 --decode > ~/certs/dist.p12
-          echo "$IOS_PROFILE_APPSTORE" | base64 --decode > ~/profiles/AppStore.mobileprovision
-          cp ~/profiles/AppStore.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          set -euo pipefail
 
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security import ~/certs/dist.p12 -k build.keychain -P "$IOS_CERT_P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          mkdir -p ~/certs ~/profiles ~/.private_keys \
+                   "$HOME/Library/MobileDevice/Provisioning Profiles"
+
+          # Write secrets -> files
+          echo "$IOS_CERT_P12" | base64 -d > ~/certs/dist.p12
+          echo "$IOS_PROFILE_APPSTORE" | base64 -d > ~/profiles/AppStore.mobileprovision
+
+          # Create & use a dedicated keychain
+          KEYCHAIN=build.keychain
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          security default-keychain -s "$KEYCHAIN"
+
+          # Import the Distribution cert
+          security import ~/certs/dist.p12 -k "$KEYCHAIN" \
+            -P "$IOS_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+
+          # Read profile metadata (UUID/Name/BID) and install profile
+          PROFILE_PLIST=$(mktemp)
+          /usr/bin/security cms -D -i ~/profiles/AppStore.mobileprovision > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          BID_WITH_TEAM=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
+          BUNDLE_ID_IN_PROFILE="${BID_WITH_TEAM#${TEAM_ID}.}"
+
+          cp ~/profiles/AppStore.mobileprovision \
+             "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "Using Provisioning Profile:"
+          echo "  Name : $PROFILE_NAME"
+          echo "  UUID : $PROFILE_UUID"
+          echo "  BID  : $BUNDLE_ID_IN_PROFILE"
+
+          {
+            echo "PROFILE_UUID=$PROFILE_UUID"
+            echo "PROFILE_NAME=$PROFILE_NAME"
+            echo "PROFILE_BUNDLE_ID=$BUNDLE_ID_IN_PROFILE"
+          } >> "$GITHUB_ENV"
 
       - name: Build archive
         working-directory: ios/App
+        shell: bash
         run: |
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -archivePath $PWD/build/App.xcarchive \
+            -archivePath "$PWD/build/App.xcarchive" \
             clean archive \
-            DEVELOPMENT_TEAM="CR4TKVT3QV" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.refurbly.app" \
-            CODE_SIGN_STYLE=Manual
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES
 
       - name: Export IPA
         working-directory: ios/App
+        shell: bash
         run: |
           cat > ExportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -114,14 +168,21 @@ jobs:
           <dict>
             <key>method</key><string>app-store</string>
             <key>signingStyle</key><string>manual</string>
-            <key>compileBitcode</key><false/>
             <key>stripSwiftSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+            <key>teamID</key><string>CR4TKVT3QV</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
           </dict>
           </plist>
           EOF
+
           xcodebuild -exportArchive \
-            -archivePath $PWD/build/App.xcarchive \
-            -exportPath $PWD/build/export \
+            -archivePath "$PWD/build/App.xcarchive" \
+            -exportPath "$PWD/build/export" \
             -exportOptionsPlist ExportOptions.plist
 
       - name: Upload to TestFlight
@@ -130,6 +191,7 @@ jobs:
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         working-directory: ios/App
+        shell: bash
         run: |
           mkdir -p ~/.private_keys
           echo "$ASC_API_KEY_P8" > ~/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8
