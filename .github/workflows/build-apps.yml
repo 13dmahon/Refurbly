@@ -78,11 +78,11 @@ jobs:
           workspace-path: ios/App/App.xcworkspace
           scheme: App
           export-method: app-store
-          certificate: ${{ secrets.IOS_CERT_P12 }}
+          p12-base64: ${{ secrets.IOS_CERT_P12 }}
           certificate-password: ${{ secrets.IOS_CERT_P12_PASSWORD }}
-          mobileprovision: ${{ secrets.IOS_PROFILE_APPSTORE }}
+          mobileprovision-base64: ${{ secrets.IOS_PROFILE_APPSTORE }}
           team-id: CR4TKVT3QV
           bundle-identifier: com.refurbly.app
-          upload-to-testflight: true
-          appleid-username: ${{ secrets.APPLEID_USERNAME }}
-          appleid-password: ${{ secrets.APPLEID_PASSWORD }}
+          app-store-connect-api-key-id: ${{ secrets.ASC_API_KEY_ID }}
+          app-store-connect-api-key-issuer-id: ${{ secrets.ASC_API_ISSUER_ID }}
+          app-store-connect-api-key-base64: ${{ secrets.ASC_API_KEY_P8 }}
