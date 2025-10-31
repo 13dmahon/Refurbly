@@ -194,6 +194,12 @@ jobs:
 
 
 
+      # (Optional) Prove the Apple Distribution cert is in our temp keychain
+      - name: List signing identities in build keychain
+        shell: bash
+        run: |
+          security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
+
       - name: Export IPA
         working-directory: ios/App
         shell: bash
@@ -203,11 +209,15 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
+            <!-- Use modern method; lets Xcode pick "Apple Distribution" automatically -->
             <key>method</key><string>app-store-connect</string>
+
             <key>signingStyle</key><string>manual</string>
             <key>stripSwiftSymbols</key><true/>
             <key>compileBitcode</key><false/>
             <key>teamID</key><string>${TEAM_ID}</string>
+
+            <!-- Map bundle id -> profile name that we installed -->
             <key>provisioningProfiles</key>
             <dict>
               <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
@@ -220,6 +230,7 @@ jobs:
             -archivePath "$PWD/build/App.xcarchive" \
             -exportPath "$PWD/build/export" \
             -exportOptionsPlist ExportOptions.plist
+
 
 
       # 5) Upload to TestFlight
