@@ -171,15 +171,12 @@ jobs:
           echo "Set CFBundleVersion=$NEW_BUILD in $PLIST"
 
       # --- ARCHIVE (force iphoneos + manual signing) -------------------------
-      - name: Build archive (unsigned)
+      - name: Build archive (signed)
         working-directory: ios/App
         shell: bash
         run: |
           set -euxo pipefail
-          echo 'EXCLUDED_ARCHS=""' >> build.xcconfig
-          echo 'ARCHS=$(ARCHS_STANDARD)' >> build.xcconfig
-          echo 'BUILD_LIBRARY_FOR_DISTRIBUTION=YES' >> build.xcconfig
-      
+          
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
@@ -187,11 +184,12 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             clean archive \
-            -xcconfig build.xcconfig \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
       
       # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
       - name: Check archive contents
@@ -233,38 +231,22 @@ jobs:
       # --- EXPORT IPA --------------------------------------------------------
       - name: Export IPA via xcodebuild
         working-directory: ios/App
-        env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
         shell: bash
         run: |
           set -euxo pipefail
-          cat > ExportOptions.plist <<EOF
+          
+          xcodebuild -exportArchive \
+            -archivePath "$PWD/build/App.xcarchive" \
+            -exportPath "$PWD/build/export" \
+            -exportOptionsPlist /dev/stdin <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${BUNDLE_ID}</key><string>${PROFILE_UUID}</string>
-            </dict>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-            <key>compileBitcode</key><false/>
           </dict>
           </plist>
           EOF
-      
-          xcodebuild -exportArchive \
-            -archivePath "$PWD/build/App.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$PWD/build/export" \
-            -authenticationKeyPath "$HOME/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8" \
-            -authenticationKeyID "${ASC_API_KEY_ID}" \
-            -authenticationKeyIssuerID "${ASC_API_ISSUER_ID}" \
-            2>&1 | tee export.log
       
       # --- UPLOAD EXPORT LOGS ALWAYS -----------------------------------------
       - name: Upload Xcode export logs (always)
