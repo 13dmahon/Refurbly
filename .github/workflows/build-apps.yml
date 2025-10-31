@@ -49,3 +49,55 @@ jobs:
         with:
           name: android-apk
           path: android/app/build/outputs/apk/release/*.apk
+          
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Build web app
+        run: npm run build
+        
+      - name: Sync Capacitor
+        run: npx cap sync ios
+        
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install
+          
+      - name: Build iOS (unsigned for testing)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            archive \
+            -archivePath $PWD/build/App.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+            
+      - name: Create IPA
+        run: |
+          cd ios/App/build
+          mkdir -p Payload
+          cp -r App.xcarchive/Products/Applications/App.app Payload/
+          zip -r App.ipa Payload
+          
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: ios/App/build/App.ipa
