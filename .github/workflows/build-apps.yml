@@ -171,7 +171,7 @@ jobs:
           echo "Set CFBundleVersion=$NEW_BUILD in $PLIST"
 
       # --- ARCHIVE (force iphoneos + manual signing) -------------------------
-      - name: Build archive
+      - name: Build archive (unsigned)
         working-directory: ios/App
         shell: bash
         run: |
@@ -179,7 +179,7 @@ jobs:
           echo 'EXCLUDED_ARCHS=""' >> build.xcconfig
           echo 'ARCHS=$(ARCHS_STANDARD)' >> build.xcconfig
           echo 'BUILD_LIBRARY_FOR_DISTRIBUTION=YES' >> build.xcconfig
-
+      
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
@@ -190,36 +190,24 @@ jobs:
             -xcconfig build.xcconfig \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
-            CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=YES \
-            -allowProvisioningUpdates
-
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+      
       # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
-      - name: Check archive signing
+      - name: Check archive contents
         working-directory: ios/App
         shell: bash
         run: |
           set -euo pipefail
-          APP="$PWD/build/App.xcarchive/Products/Applications/App.app"
-          if [ ! -d "$APP" ]; then
+          APP="$(/usr/bin/find "$PWD/build/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "${APP:-}" ]; then
             echo "::error::App.app not found in archive"
             find "$PWD/build/App.xcarchive" -maxdepth 4 -print
             exit 1
           fi
-          if [ ! -f "$APP/embedded.mobileprovision" ]; then
-            echo "::error::embedded.mobileprovision missing! (archive wasn't signed)"
-            exit 1
-          fi
-          echo "Codesign dump:"
-          /usr/bin/codesign -dv --verbose=2 "$APP" 2>&1 | egrep 'Authority|TeamIdentifier'
-          echo "Embedded App ID:"
-          /usr/bin/security cms -D -i "$APP/embedded.mobileprovision" \
-            | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin
+          echo "Archive contains: $APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" || true
+          echo "Note: signing happens during export."
 
       # --- EXPORT IPA --------------------------------------------------------
       - name: Export IPA via xcodebuild
