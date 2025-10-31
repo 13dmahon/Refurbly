@@ -161,6 +161,18 @@ jobs:
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App \
             | egrep 'CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
 
+      # --- Optional: bump iOS build number (helps avoid build-number collisions)
+      - name: Bump iOS build number (CFBundleVersion)
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLIST="App/App/Info.plist"
+          NEW_BUILD=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $NEW_BUILD" "$PLIST"
+          echo "Set CFBundleVersion=$NEW_BUILD in $PLIST"
+
       # --- ARCHIVE (signed with Apple Distribution + profile *name*) ----------
       - name: Build archive
         working-directory: ios/App
@@ -196,18 +208,32 @@ jobs:
           set -euxo pipefail
           security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
 
-      # --- EXPORT (use archive's signatures; collect logs) --------------------
+      - name: Inspect archive metadata
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$PWD/build/App.xcarchive"
+          echo "Archive Info.plist keys:"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$ARCHIVE/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$ARCHIVE/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:SigningIdentity' "$ARCHIVE/Info.plist" || true
+          /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE/Info.plist" || true
+          /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier' "$ARCHIVE/Info.plist" || true
+
+      # --- EXPORT (use archive's signatures; include teamID; collect logs) ---
       - name: Export IPA via xcodebuild
         working-directory: ios/App
         shell: bash
         run: |
           set -euxo pipefail
-          cat > ExportOptions.plist <<'EOF'
+          cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
