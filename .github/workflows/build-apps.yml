@@ -220,14 +220,13 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <!-- Use the modern method -->
-            <key>method</key><string>app-store-connect</string>
-            <!-- Let Xcode auto-sign during export (do NOT force manual here) -->
+            <key>method</key><string>app-store</string>
             <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
-              <!-- Only map the APP bundle id, not frameworks -->
-              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_UUID}</string>
             </dict>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
@@ -241,10 +240,7 @@ jobs:
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$PWD/build/export" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
-            -allowProvisioningUpdates \
             2>&1 | tee export.log
-
-
       # --- UPLOAD EXPORT LOGS ALWAYS -----------------------------------------
       - name: Upload Xcode export logs (always)
         if: always()
