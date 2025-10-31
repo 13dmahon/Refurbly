@@ -209,21 +209,21 @@ jobs:
           done
           
           echo "Framework signatures stripped"
-            # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
-            - name: Check archive contents
-              working-directory: ios/App
-              shell: bash
-              run: |
-                set -euo pipefail
-                APP="$(/usr/bin/find "$PWD/build/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
-                if [ -z "${APP:-}" ]; then
-                  echo "::error::App.app not found in archive"
-                  find "$PWD/build/App.xcarchive" -maxdepth 4 -print
-                  exit 1
-                fi
-                echo "Archive contains: $APP"
-                /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" || true
-                echo "Note: signing happens during export."
+      # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
+      - name: Check archive contents
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(/usr/bin/find "$PWD/build/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "${APP:-}" ]; then
+            echo "::error::App.app not found in archive"
+            find "$PWD/build/App.xcarchive" -maxdepth 4 -print
+            exit 1
+          fi
+          echo "Archive contains: $APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" || true
+          echo "Note: signing happens during export."
 
       # --- SETUP API KEY FIRST -----------------------------------------------
       - name: Setup App Store Connect API Key
