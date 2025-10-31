@@ -77,7 +77,7 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
-      # ---- 1) Sanity check P12 + password on the runner ----
+      # 1) Sanity check the P12 file + password (fast failure if wrong)
       - name: Sanity check P12 password
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -85,17 +85,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # macOS base64 decode flag is -D (capital D)
+          # macOS base64 decode is -D (capital D)
           echo "$IOS_CERT_P12" | /usr/bin/base64 -D > /tmp/dist.p12
-          # Show sizes to debug copy/paste issues
           echo "B64 chars: $(echo -n "$IOS_CERT_P12" | wc -c)"
-          echo "P12 bytes: $(wc -c < /tmp/dist.p12)"
-          # This fails if password/file are wrong
+          echo "P12 bytes:  $(wc -c < /tmp/dist.p12)"
           /usr/bin/openssl pkcs12 -in /tmp/dist.p12 \
             -passin pass:"$IOS_CERT_P12_PASSWORD" \
             -nokeys -clcerts -info -noout
 
-      # ---- 2) Install signing assets into a temporary keychain ----
+      # 2) Install signing assets and create a dedicated keychain
       - name: Install signing assets
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -108,21 +106,33 @@ jobs:
           mkdir -p "$HOME/certs" "$HOME/profiles" \
                    "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          # Decode secrets (macOS: -D)
+          # Decode secrets
           echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
           echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
 
-          KEYCHAIN=build.keychain
-          security create-keychain -p "" "$KEYCHAIN"
-          security set-keychain-settings "$KEYCHAIN"
-          security unlock-keychain -p "" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN" login.keychain
-          security default-keychain -s "$KEYCHAIN"
+          # --- create & use a dedicated keychain (use full path with -db) ---
+          KEYCHAIN_NAME=build.keychain-db
+          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
 
-          # Import certificate
-          security import "$HOME/certs/dist.p12" -k "$KEYCHAIN" \
-            -P "$IOS_CERT_P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+          /usr/bin/security create-keychain -p "" "$KEYCHAIN_PATH"
+          /usr/bin/security set-keychain-settings "$KEYCHAIN_PATH"
+          /usr/bin/security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+          /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
+
+          # --- import the P12 (explicit format, allow codesign/security, make it accessible) ---
+          /usr/bin/security import "$HOME/certs/dist.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -f pkcs12 \
+            -P "$IOS_CERT_P12_PASSWORD" \
+            -A -t cert \
+            -T /usr/bin/codesign -T /usr/bin/security
+
+          # grant tools access to the private key material
+          /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
+
+          # debug: confirm a signing identity is visible to codesign
+          /usr/bin/security find-identity -p codesigning "$KEYCHAIN_PATH" || true
 
           # Read profile metadata and install by UUID
           PROFILE_PLIST=$(mktemp)
@@ -183,6 +193,7 @@ jobs:
           </dict>
           </plist>
           EOF
+
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/App.xcarchive" \
             -exportPath "$PWD/build/export" \
