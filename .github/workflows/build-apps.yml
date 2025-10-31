@@ -66,283 +66,96 @@ jobs:
 
       - name: Install dependencies & build web
         run: |
-          set -euxo pipefail
           npm ci
           npm run build
 
       - name: Sync Capacitor iOS
-        run: |
-          set -euxo pipefail
-          npx cap sync ios
+        run: npx cap sync ios
 
       - name: Install CocoaPods
         working-directory: ios/App
-        run: |
-          set -euxo pipefail
-          pod install --repo-update
+        run: pod install --repo-update
 
-      # --- SIGNING ASSETS -----------------------------------------------------
-      - name: Sanity check P12 password
+      - name: Install signing certificate
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
           IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
-        shell: bash
         run: |
-          set -euxo pipefail
-          echo "$IOS_CERT_P12" | /usr/bin/base64 -D > /tmp/dist.p12
-          /usr/bin/openssl pkcs12 -in /tmp/dist.p12 \
-            -passin pass:"$IOS_CERT_P12_PASSWORD" \
-            -nokeys -clcerts -info -noout
+          echo "$IOS_CERT_P12" | base64 -D > cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$IOS_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          rm cert.p12
 
-      - name: Install signing assets
+      - name: Install provisioning profile
         env:
-          IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
-          IOS_CERT_P12_PASSWORD: ${{ secrets.IOS_CERT_P12_PASSWORD }}
           IOS_PROFILE_APPSTORE: ${{ secrets.IOS_PROFILE_APPSTORE }}
-        shell: bash
         run: |
-          set -euxo pipefail
-
-          mkdir -p "$HOME/certs" "$HOME/profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"
-
-          echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
-          echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
-
-          KEYCHAIN_NAME=build.keychain-db
-          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
-
-          /usr/bin/security create-keychain -p "" "$KEYCHAIN_PATH"
-          /usr/bin/security set-keychain-settings "$KEYCHAIN_PATH"
-          /usr/bin/security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" "$HOME/Library/Keychains/login.keychain-db"
-          /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
-
-          /usr/bin/security import "$HOME/certs/dist.p12" \
-            -k "$KEYCHAIN_PATH" -f pkcs12 -P "$IOS_CERT_P12_PASSWORD" \
-            -A -t cert -T /usr/bin/codesign -T /usr/bin/security
-
-          /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
-
-          PROFILE_PLIST=$(mktemp)
-          /usr/bin/security cms -D -i "$HOME/profiles/AppStore.mobileprovision" > "$PROFILE_PLIST"
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
-          APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
-          BUNDLE_ID_IN_PROFILE="${APP_ID#${TEAM_ID}.}"
-
-          echo "Profile summary:"
-          echo "  Name:        $PROFILE_NAME"
-          echo "  UUID:        $PROFILE_UUID"
-          echo "  App ID:      $APP_ID"
-          echo "  Bundle ID:   $BUNDLE_ID_IN_PROFILE"
-
-          if [ "$BUNDLE_ID_IN_PROFILE" != "$BUNDLE_ID" ]; then
-            echo "::error::Profile bundle id mismatch"
-            exit 1
-          fi
-
-          cp "$HOME/profiles/AppStore.mobileprovision" \
-             "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-
-          {
-            echo "PROFILE_UUID=$PROFILE_UUID"
-            echo "PROFILE_NAME=$PROFILE_NAME"
-            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
-          } >> "$GITHUB_ENV"
-
-      # --- VERIFY SIGNING CONFIG ---------------------------------------------
-      - name: Show signing build settings
-        working-directory: ios/App
-        run: |
-          set -euxo pipefail
-          xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App \
-            | egrep 'CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
-
-      # --- FIXED PLIST PATH ---------------------------------------------------
-      - name: Bump iOS build number (CFBundleVersion)
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euo pipefail
-          PLIST="App/Info.plist"
-          NEW_BUILD=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST" || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $NEW_BUILD" "$PLIST"
-          echo "Set CFBundleVersion=$NEW_BUILD in $PLIST"
-
-      # --- ARCHIVE (force iphoneos + manual signing) -------------------------
-      - name: Build archive (signed)
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euxo pipefail
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROFILE_APPSTORE" | base64 -D > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
           
-          xcodebuild -workspace App.xcworkspace \
+          # Extract UUID
+          PROFILE_UUID=$(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision | plutil -extract UUID raw -)
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
+
+      - name: Bump build number
+        working-directory: ios/App
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $((1000 + ${GITHUB_RUN_NUMBER:-1}))" App/Info.plist
+
+      - name: Build & Export IPA
+        working-directory: ios/App
+        run: |
+          # Build archive with automatic signing
+          xcodebuild archive \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -archivePath "$PWD/build/App.xcarchive" \
-            -sdk iphoneos \
+            -archivePath build/App.xcarchive \
             -destination 'generic/platform=iOS' \
-            clean archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
-
-# --- ARCHIVE (force iphoneos + manual signing) -------------------------
-            
-      - name: Strip framework signatures
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euxo pipefail
-          ARCHIVE_APP="$PWD/build/App.xcarchive/Products/Applications/App.app"
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID
           
-          # Remove code signatures from all frameworks
-          for framework in "$ARCHIVE_APP/Frameworks"/*.framework; do
-            if [ -d "$framework" ]; then
-              echo "Stripping signature from $(basename "$framework")"
-              /usr/bin/codesign --remove-signature "$framework" || true
-            fi
-          done
-          
-          echo "Framework signatures stripped"
-      # --- VERIFY ARCHIVE SIGNATURE ------------------------------------------
-      - name: Check archive contents
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euo pipefail
-          APP="$(/usr/bin/find "$PWD/build/App.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
-          if [ -z "${APP:-}" ]; then
-            echo "::error::App.app not found in archive"
-            find "$PWD/build/App.xcarchive" -maxdepth 4 -print
-            exit 1
-          fi
-          echo "Archive contains: $APP"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" || true
-          echo "Note: signing happens during export."
-
-      # --- SETUP API KEY FIRST -----------------------------------------------
-      - name: Setup App Store Connect API Key
-        env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p "$HOME/.private_keys"
-          KEY_PATH="$HOME/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
-          
-          if printf '%s' "$ASC_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
-            printf '%s' "$ASC_API_KEY_P8" > "$KEY_PATH"
-          else
-            printf '%s' "$ASC_API_KEY_P8" | /usr/bin/base64 -D > "$KEY_PATH"
-          fi
-          tr -d '\r' < "$KEY_PATH" > "${KEY_PATH}.tmp" && mv "${KEY_PATH}.tmp" "$KEY_PATH"
-          chmod 600 "$KEY_PATH"
-
-
-
-      # --- EXPORT IPA --------------------------------------------------------
-      - name: Export IPA via xcodebuild
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euxo pipefail
-          
-          # Manually embed the provisioning profile in the archive
-          ARCHIVE_APP="$PWD/build/App.xcarchive/Products/Applications/App.app"
-          cp "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
-             "$ARCHIVE_APP/embedded.mobileprovision"
-          
-          # Now export
-          xcodebuild -exportArchive \
-            -archivePath "$PWD/build/App.xcarchive" \
-            -exportPath "$PWD/build/export" \
-            -exportOptionsPlist /dev/stdin <<EOF
+          # Export with manual signing
+          cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>uploadBitcode</key><false/>
           </dict>
           </plist>
           EOF
-      
-      # --- UPLOAD EXPORT LOGS ALWAYS -----------------------------------------
-      - name: Upload Xcode export logs (always)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcode-export-logs
-          path: |
-            ios/App/export.log
-            ~/Library/Logs/xcdistributionlogs/**/*.txt
-            ~/Library/Logs/xcdistributionlogs/**/*.log
-          if-no-files-found: ignore
+          
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist
 
-      # --- VERIFY IPA SIGNATURE ----------------------------------------------
-      - name: Verify exported app signature
-        working-directory: ios/App
-        shell: bash
-        run: |
-          set -euxo pipefail
-          APP_PATH="$(/usr/bin/find build/export -name 'App.app' -path '*/Payload/*' -print -quit)"
-          if [ -z "${APP_PATH:-}" ]; then
-            echo "::error::No App.app found in export. See export.log."
-            exit 1
-          fi
-          /usr/bin/codesign --verify --deep --strict "$APP_PATH"
-          /usr/bin/codesign -dv --verbose=2 "$APP_PATH"
-          /usr/bin/security cms -D -i "$APP_PATH/embedded.mobileprovision" \
-            | /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /dev/stdin
-
-      # --- UPLOAD TO TESTFLIGHT ----------------------------------------------
       - name: Upload to TestFlight
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
         working-directory: ios/App
-        shell: bash
         run: |
-          set -euxo pipefail
-          mkdir -p "$HOME/.private_keys"
-          KEY_PATH="$HOME/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
-
-          if printf '%s' "$ASC_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
-            printf '%s' "$ASC_API_KEY_P8" > "$KEY_PATH"
-          else
-            printf '%s' "$ASC_API_KEY_P8" | /usr/bin/base64 -D > "$KEY_PATH"
-          fi
-          tr -d '\r' < "$KEY_PATH" > "${KEY_PATH}.tmp" && mv "${KEY_PATH}.tmp" "$KEY_PATH"
-          chmod 600 "$KEY_PATH"
-
-          IPA_PATH="$(/usr/bin/find build/export -name '*.ipa' -print -quit)"
-          if [ -z "${IPA_PATH:-}" ]; then
-            echo "::error::No IPA found to upload. Check export step."
-            exit 1
-          fi
-
-          set +e
+          mkdir -p ~/.private_keys
+          echo "$ASC_API_KEY_P8" | base64 -D > ~/.private_keys/AuthKey_${ASC_API_KEY_ID}.p8
+          
           xcrun altool --upload-app \
             --type ios \
-            --file "$IPA_PATH" \
-            --apiKey "$ASC_API_KEY_ID" \
-            --apiIssuer "$ASC_API_ISSUER_ID"
-          STATUS=$?
-          set -e
-          if [ $STATUS -ne 0 ]; then
-            echo "altool failed ($STATUS). Retrying with iTMSTransporter..."
-            xcrun iTMSTransporter -m upload -assetFile "$IPA_PATH" \
-              -apiKey "$ASC_API_KEY_ID" -apiIssuer "$ASC_API_ISSUER_ID" -verbose
-          fi
+            --file build/export/*.ipa \
+            --apiKey $ASC_API_KEY_ID \
+            --apiIssuer $ASC_API_ISSUER_ID
 
-      - name: Upload iOS IPA artifact
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
