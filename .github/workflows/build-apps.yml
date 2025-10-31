@@ -253,6 +253,12 @@ jobs:
         run: |
           set -euxo pipefail
           
+          # Manually embed the provisioning profile in the archive
+          ARCHIVE_APP="$PWD/build/App.xcarchive/Products/Applications/App.app"
+          cp "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
+             "$ARCHIVE_APP/embedded.mobileprovision"
+          
+          # Now export
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/App.xcarchive" \
             -exportPath "$PWD/build/export" \
