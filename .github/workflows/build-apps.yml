@@ -52,7 +52,6 @@ jobs:
   build-ios:
     name: Build & Upload iOS (TestFlight)
     runs-on: macos-latest
-
     env:
       BUNDLE_ID: com.refurbly.app
       TEAM_ID: CR4TKVT3QV
@@ -77,7 +76,7 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
-      # 1) Validate the certificate
+      # --- SIGNING ASSETS -----------------------------------------------------
       - name: Sanity check P12 password
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -90,7 +89,6 @@ jobs:
             -passin pass:"$IOS_CERT_P12_PASSWORD" \
             -nokeys -clcerts -info -noout
 
-      # 2) Install signing assets
       - name: Install signing assets
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -106,7 +104,6 @@ jobs:
           echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
           echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
 
-          # Create & select temp keychain
           KEYCHAIN_NAME=build.keychain-db
           KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
 
@@ -116,17 +113,12 @@ jobs:
           /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Import Apple Distribution cert
           /usr/bin/security import "$HOME/certs/dist.p12" \
-            -k "$KEYCHAIN_PATH" \
-            -f pkcs12 \
-            -P "$IOS_CERT_P12_PASSWORD" \
-            -A -t cert \
-            -T /usr/bin/codesign -T /usr/bin/security
+            -k "$KEYCHAIN_PATH" -f pkcs12 -P "$IOS_CERT_P12_PASSWORD" \
+            -A -t cert -T /usr/bin/codesign -T /usr/bin/security
 
           /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
 
-          # Extract profile info
           PROFILE_PLIST=$(mktemp)
           /usr/bin/security cms -D -i "$HOME/profiles/AppStore.mobileprovision" > "$PROFILE_PLIST"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
@@ -149,14 +141,15 @@ jobs:
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
 
+      # --- ARCHIVE (SIGNED WITH APPLE DISTRIBUTION) ---------------------------
       - name: Build archive (manual signing for App target only)
         working-directory: ios/App
         shell: bash
         run: |
-          echo "EXCLUDED_ARCHS=\"\"" >> build.xcconfig
-          echo "ARCHS=\$(ARCHS_STANDARD)" >> build.xcconfig
-          echo "BUILD_LIBRARY_FOR_DISTRIBUTION=YES" >> build.xcconfig
-          echo "OTHER_SWIFT_FLAGS=\$(inherited) -no-verify-emitted-module-interface" >> build.xcconfig
+          echo 'EXCLUDED_ARCHS=""' >> build.xcconfig
+          echo 'ARCHS=$(ARCHS_STANDARD)' >> build.xcconfig
+          echo 'BUILD_LIBRARY_FOR_DISTRIBUTION=YES' >> build.xcconfig
+          echo 'OTHER_SWIFT_FLAGS=$(inherited) -no-verify-emitted-module-interface' >> build.xcconfig
 
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
@@ -168,60 +161,44 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=YES \
-            "CODE_SIGNING_ALLOWED[sdk=iphoneos*]=YES" \
             "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]=NO" \
-            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphonesimulator*]=" \
             -allowProvisioningUpdates
 
       - name: List signing identities in build keychain
         shell: bash
-        run: |
-          security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
+        run: security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
 
-      - name: Export IPA
+      # --- PACKAGE IPA MANUALLY (avoid xcodebuild -exportArchive) -------------
+      - name: Package IPA manually
         working-directory: ios/App
         shell: bash
         run: |
-          # Ensure exporter sees & can use the temp keychain
+          set -euo pipefail
+          ARCHIVE="$PWD/build/App.xcarchive"
+          APP_PATH="$ARCHIVE/Products/Applications/App.app"
+
+          # Make sure exporter can still access the keychain (defensive)
           /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
           /usr/bin/security unlock-keychain -p "" "$KEYCHAIN_PATH"
 
-          cat > ExportOptions.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
+          # Place the provisioning profile into the .app (not strictly required if already embedded)
+          PROFILE_FILE="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          /bin/cp "$PROFILE_FILE" "$APP_PATH/embedded.mobileprovision"
 
-            <!-- Force the modern cert name so it doesn't look for "iOS Distribution" -->
-            <key>signingStyle</key><string>manual</string>
-            <key>signingCertificate</key><string>Apple Distribution</string>
+          # Create Payload and zip into IPA
+          WORK="$PWD/build/export"
+          rm -rf "$WORK" && mkdir -p "$WORK/Payload"
+          /bin/cp -R "$APP_PATH" "$WORK/Payload/"
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$WORK/Payload" "$WORK/App.ipa"
+          echo "IPA created at: $WORK/App.ipa"
 
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
-            </dict>
-
-            <key>stripSwiftSymbols</key><true/>
-            <key>compileBitcode</key><false/>
-          </dict>
-          </plist>
-          EOF
-
-          xcodebuild -exportArchive \
-            -archivePath "$PWD/build/App.xcarchive" \
-            -exportPath "$PWD/build/export" \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates
-
+      # --- UPLOAD TO TESTFLIGHT ----------------------------------------------
       - name: Upload to TestFlight
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
