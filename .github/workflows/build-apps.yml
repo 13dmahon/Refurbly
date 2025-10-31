@@ -173,7 +173,7 @@ jobs:
         shell: bash
         run: security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
 
-      # --- PACKAGE IPA MANUALLY (avoid xcodebuild -exportArchive) -------------
+      # --- PACKAGE IPA MANUALLY (no post-signing mutations) -------------------
       - name: Package IPA manually
         working-directory: ios/App
         shell: bash
@@ -182,13 +182,9 @@ jobs:
           ARCHIVE="$PWD/build/App.xcarchive"
           APP_PATH="$ARCHIVE/Products/Applications/App.app"
 
-          # Ensure keychain still active
-          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-          /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
-          /usr/bin/security unlock-keychain -p "" "$KEYCHAIN_PATH"
-
-          PROFILE_FILE="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          /bin/cp "$PROFILE_FILE" "$APP_PATH/embedded.mobileprovision"
+          # Do NOT modify contents of $APP_PATH after signing.
+          /usr/bin/codesign --verify --deep --strict "$APP_PATH"
+          /usr/bin/codesign -dv --verbose=2 "$APP_PATH" || true
 
           WORK="$PWD/build/export"
           rm -rf "$WORK" && mkdir -p "$WORK/Payload"
@@ -227,7 +223,7 @@ jobs:
             exit 1
           fi
 
-          # Prefer altool; if it fails with auth errors, try iTMSTransporter
+          echo "Running altool at path '$(/usr/bin/mdfind -name altool | head -n1 || echo /Applications/Xcode_16.4.app/Contents/SharedFrameworks/ContentDeliveryServices.framework/Frameworks/AppStoreService.framework/Support/altool)'..."
           set +e
           xcrun altool --upload-app \
             --type ios \
