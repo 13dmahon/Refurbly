@@ -148,7 +148,6 @@ jobs:
           echo "  UUID : $PROFILE_UUID"
           echo "  BID  : $BUNDLE_ID_IN_PROFILE"
 
-          # Export for later steps
           {
             echo "PROFILE_UUID=$PROFILE_UUID"
             echo "PROFILE_NAME=$PROFILE_NAME"
@@ -162,7 +161,7 @@ jobs:
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
 
-      # 3) ARCHIVE: Use Automatic signing (lets Xcode pick profiles per target)
+      # 3) ARCHIVE: Automatic signing (lets Xcode pick per-target; fixes Pods error)
       - name: Build archive
         working-directory: ios/App
         shell: bash
@@ -182,7 +181,7 @@ jobs:
             CODE_SIGNING_REQUIRED=YES \
             -allowProvisioningUpdates
 
-      # 4) EXPORT: Explicitly use your App Store profile for the final IPA
+      # 4) EXPORT: map your App Store profile to the bundle id
       - name: Export IPA
         working-directory: ios/App
         shell: bash
