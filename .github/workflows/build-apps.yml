@@ -139,9 +139,9 @@ jobs:
       - name: Show signing build settings
         working-directory: ios/App
         run: |
-          xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
+          xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
 
-      # --- ARCHIVE (SIGNED WITH APPLE DISTRIBUTION) ---------------------------
+      # --- ARCHIVE ------------------------------------------------------------
       - name: Build archive (manual signing for App target only)
         working-directory: ios/App
         shell: bash
@@ -173,24 +173,47 @@ jobs:
         shell: bash
         run: security find-identity -p codesigning -v "$KEYCHAIN_PATH" || true
 
-      # --- PACKAGE IPA MANUALLY (no post-signing mutations) -------------------
-      - name: Package IPA manually
+      # --- EXPORT (Xcode signs the .ipa here) --------------------------------
+      - name: Export IPA via xcodebuild
         working-directory: ios/App
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE="$PWD/build/App.xcarchive"
-          APP_PATH="$ARCHIVE/Products/Applications/App.app"
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
 
-          # Do NOT modify contents of $APP_PATH after signing.
+          xcodebuild -exportArchive \
+            -archivePath "$PWD/build/App.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$PWD/build/export" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
+
+      # --- VERIFY SIGNATURE AFTER EXPORT -------------------------------------
+      - name: Verify exported app signature
+        working-directory: ios/App
+        shell: bash
+        run: |
+          APP_PAYLOAD="$(/usr/bin/find build/export -type d -name 'Payload' -maxdepth 2)"
+          APP_PATH="$APP_PAYLOAD/App.app"
           /usr/bin/codesign --verify --deep --strict "$APP_PATH"
           /usr/bin/codesign -dv --verbose=2 "$APP_PATH" || true
-
-          WORK="$PWD/build/export"
-          rm -rf "$WORK" && mkdir -p "$WORK/Payload"
-          /bin/cp -R "$APP_PATH" "$WORK/Payload/"
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$WORK/Payload" "$WORK/App.ipa"
-          echo "IPA created at: $WORK/App.ipa"
+          /usr/bin/security cms -D -i "$APP_PATH/embedded.mobileprovision" >/dev/null
 
       # --- UPLOAD TO TESTFLIGHT (robust .p8 handling) -------------------------
       - name: Upload to TestFlight
@@ -213,17 +236,14 @@ jobs:
             printf '%s' "$ASC_API_KEY_P8" | /usr/bin/base64 -D > "$KEY_PATH"
           fi
 
-          # Normalize CRLF -> LF
           tr -d '\r' < "$KEY_PATH" > "${KEY_PATH}.tmp" && mv "${KEY_PATH}.tmp" "$KEY_PATH"
           chmod 600 "$KEY_PATH"
 
-          # Minimal sanity check (safe to print header only)
           if ! head -n1 "$KEY_PATH" | grep -q "BEGIN PRIVATE KEY"; then
             echo "::error::The AuthKey at $KEY_PATH is not a valid PEM. Ensure ASC_API_KEY_P8 is the exact .p8 contents or base64 of it."
             exit 1
           fi
 
-          echo "Running altool at path '$(/usr/bin/mdfind -name altool | head -n1 || echo /Applications/Xcode_16.4.app/Contents/SharedFrameworks/ContentDeliveryServices.framework/Frameworks/AppStoreService.framework/Support/altool)'..."
           set +e
           xcrun altool --upload-app \
             --type ios \
