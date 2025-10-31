@@ -222,8 +222,6 @@ jobs:
           <dict>
             <key>method</key><string>app-store</string>
             <key>teamID</key><string>${TEAM_ID}</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>${BUNDLE_ID}</key><string>${PROFILE_UUID}</string>
@@ -239,8 +237,9 @@ jobs:
             -archivePath "$PWD/build/App.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$PWD/build/export" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            -allowProvisioningUpdates \
             2>&1 | tee export.log
+      
       # --- UPLOAD EXPORT LOGS ALWAYS -----------------------------------------
       - name: Upload Xcode export logs (always)
         if: always()
