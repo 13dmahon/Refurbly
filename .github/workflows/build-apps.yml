@@ -162,7 +162,7 @@ jobs:
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
 
-      # 3) ARCHIVE: do NOT force a provisioning profile here (avoids Pod errors)
+      # 3) ARCHIVE: Specify provisioning profile by UUID - THIS IS THE FIX!
       - name: Build archive
         working-directory: ios/App
         shell: bash
@@ -177,6 +177,7 @@ jobs:
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=YES
