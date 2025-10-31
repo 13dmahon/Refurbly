@@ -161,20 +161,20 @@ jobs:
         working-directory: ios/App
         shell: bash
         run: |
-          echo "🛠 Disabling signing for Pods..."
-          # Disable signing for Pods targets dynamically
-          xcodebuild -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -showBuildSettings | grep -E 'TARGET_NAME|CODE_SIGN' || true
+          echo "🛠 Applying CI-specific Xcode fixes..."
+          # Prevent missing Capacitor.framework binary during archive
+          echo "EXCLUDED_ARCHS=\"\"" >> build.xcconfig
+          echo "ARCHS=\$(ARCHS_STANDARD)" >> build.xcconfig
+          echo "BUILD_LIBRARY_FOR_DISTRIBUTION=YES" >> build.xcconfig
+          echo "OTHER_SWIFT_FLAGS=\$(inherited) -no-verify-emitted-module-interface" >> build.xcconfig
 
-          # Build archive, disable signing for pods explicitly
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath "$PWD/build/App.xcarchive" \
             -destination 'generic/platform=iOS' \
             clean archive \
+            -xcconfig build.xcconfig \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
@@ -190,8 +190,8 @@ jobs:
             "CODE_SIGN_IDENTITY[sdk=macosx*]=" \
             "PROVISIONING_PROFILE_SPECIFIER[sdk=iphonesimulator*]=" \
             "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]=" \
-            EXCLUDED_ARCHS="arm64" \
             -allowProvisioningUpdates
+
 
 
       # 4) EXPORT using App Store profile + distribution cert
