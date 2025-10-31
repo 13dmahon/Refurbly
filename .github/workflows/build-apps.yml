@@ -83,6 +83,7 @@ jobs:
           mobileprovision-base64: ${{ secrets.IOS_PROFILE_APPSTORE }}
           team-id: CR4TKVT3QV
           bundle-identifier: com.refurbly.app
+          code-signing-identity: Apple Distribution
           app-store-connect-api-key-id: ${{ secrets.ASC_API_KEY_ID }}
           app-store-connect-api-key-issuer-id: ${{ secrets.ASC_API_ISSUER_ID }}
           app-store-connect-api-key-base64: ${{ secrets.ASC_API_KEY_P8 }}
