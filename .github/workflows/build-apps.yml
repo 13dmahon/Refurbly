@@ -77,7 +77,7 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
-      # 1) Validate your signing certificate
+      # 1) Validate the certificate
       - name: Sanity check P12 password
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -92,7 +92,7 @@ jobs:
             -passin pass:"$IOS_CERT_P12_PASSWORD" \
             -nokeys -clcerts -info -noout
 
-      # 2) Install signing assets and keychain
+      # 2) Install the signing assets into a keychain and provisioning directory
       - name: Install signing assets
         env:
           IOS_CERT_P12: ${{ secrets.IOS_CERT_P12 }}
@@ -105,7 +105,6 @@ jobs:
           mkdir -p "$HOME/certs" "$HOME/profiles" \
                    "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          # Decode secrets (macOS: -D)
           echo "$IOS_CERT_P12" | /usr/bin/base64 -D > "$HOME/certs/dist.p12"
           echo "$IOS_PROFILE_APPSTORE" | /usr/bin/base64 -D > "$HOME/profiles/AppStore.mobileprovision"
 
@@ -119,7 +118,7 @@ jobs:
           /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           /usr/bin/security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Import cert
+          # Import certificate
           /usr/bin/security import "$HOME/certs/dist.p12" \
             -k "$KEYCHAIN_PATH" \
             -f pkcs12 \
@@ -129,7 +128,7 @@ jobs:
 
           /usr/bin/security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
 
-          # Extract provisioning profile info
+          # Extract provisioning profile metadata
           PROFILE_PLIST=$(mktemp)
           /usr/bin/security cms -D -i "$HOME/profiles/AppStore.mobileprovision" > "$PROFILE_PLIST"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
@@ -152,14 +151,14 @@ jobs:
             echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
           } >> "$GITHUB_ENV"
 
-      # (Optional) Inspect signing info before building
-      - name: Show signing build settings (debug)
+      # Optional: Check what Xcode sees
+      - name: Show signing build settings
         working-directory: ios/App
         run: |
           xcodebuild -showBuildSettings -workspace App.xcworkspace -scheme App | egrep 'CODE_SIGN|PROVISIONING_PROFILE' || true
 
-      # 3) Archive with automatic signing (fixes provisioning conflicts)
-      - name: Build archive
+      # 3) ARCHIVE using manual signing (fixes 'No Accounts' error)
+      - name: Build archive (manual signing)
         working-directory: ios/App
         shell: bash
         run: |
@@ -171,13 +170,14 @@ jobs:
             clean archive \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=YES \
-            -allowProvisioningUpdates
+            CODE_SIGNING_REQUIRED=YES
 
-      # 4) Export the IPA using App Store profile + Apple Distribution
+      # 4) EXPORT using App Store profile + distribution cert
       - name: Export IPA
         working-directory: ios/App
         shell: bash
