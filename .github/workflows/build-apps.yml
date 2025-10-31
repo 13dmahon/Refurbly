@@ -221,7 +221,6 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:Team' "$ARCHIVE/Info.plist" || true
           /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier' "$ARCHIVE/Info.plist" || true
 
-      # --- EXPORT (use archive's signatures; include teamID; collect logs) ---
       - name: Export IPA via xcodebuild
         working-directory: ios/App
         shell: bash
@@ -246,8 +245,8 @@ jobs:
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$PWD/build/export" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
-            -allowProvisioningUpdates \
             2>&1 | tee export.log
+
 
       - name: Upload Xcode export logs (always)
         if: always()
