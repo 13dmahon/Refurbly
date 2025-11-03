@@ -54,12 +54,15 @@ jobs:
       # Force absolute asset URLs + remove crossorigin (prevents generic 'Script error' in WKWebView)
       - name: Make asset URLs absolute + drop crossorigin
         run: |
-          # BSD sed first (macOS), fall back to GNU sed if needed
+          # Ensure absolute asset URLs (BSD sed first, fallback to GNU sed)
           sed -i '' 's|src="./assets/|src="/assets/|g' dist/index.html || sed -i 's|src="./assets/|src="/assets/|g' dist/index.html
           sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
-          sed -i '' 's/\scrossorigin//g' dist/index.html || sed -i 's/\scrossorigin//g' dist/index.html
+          # Remove crossorigin (BSD/GNU compatible)
+          sed -i '' -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html || sed -i -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html
           echo "=== index.html (after patch) ==="
           sed -n '1,120p' dist/index.html || true
+          echo "=== grep for crossorigin (should be empty) ==="
+          grep -n "crossorigin" dist/index.html || true
 
       - name: Sync iOS platform (Capacitor runs pod install)
         run: npx cap sync ios
