@@ -7,7 +7,11 @@ on:
     paths:
       - "ios/**"
       - "src/**"
+      - "public/**"
       - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.*"
+      - "vite.config.*"
       - "fastlane/**"
       - ".github/workflows/ios-testflight.yml"
 
@@ -32,10 +36,9 @@ jobs:
           npm ci
           npm run build
 
-      - name: Sync iOS platform
+      - name: Sync iOS platform (Capacitor runs pod install)
         run: |
           npx cap sync ios
-          cd ios && pod install --repo-update && cd ..
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -47,17 +50,21 @@ jobs:
 
       - name: Build and upload to TestFlight
         env:
-          ASC_KEY_ID:      ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID:   ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          # App Store Connect API key (your secret names)
+          ASC_API_KEY_ID:    ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8:    ${{ secrets.ASC_API_KEY_P8 }}
 
-          APPLE_ID:        ${{ secrets.APPLE_ID }}
-          APP_IDENTIFIER:  ${{ secrets.APP_IDENTIFIER }}
-          DEV_TEAM:        ${{ secrets.DEV_TEAM }}
+          # Apple / app identifiers
+          APPLEID_USERNAME:  ${{ secrets.APPLEID_USERNAME }}
+          APP_IDENTIFIER:    ${{ secrets.APP_IDENTIFIER }}
+          DEV_TEAM:          ${{ secrets.DEV_TEAM }}
 
-          MATCH_REPO:      ${{ secrets.MATCH_REPO }}
-          MATCH_PASSWORD:  ${{ secrets.MATCH_PASSWORD }}
+          # fastlane match repo + encryption password
+          MATCH_REPO:        ${{ secrets.MATCH_REPO }}
+          MATCH_PASSWORD:    ${{ secrets.MATCH_PASSWORD }}
 
-          IOS_WORKSPACE:   ios/App/App.xcworkspace
-          IOS_SCHEME:      App
+          # Capacitor iOS workspace/scheme (defaults)
+          IOS_WORKSPACE:     ios/App/App.xcworkspace
+          IOS_SCHEME:        App
         run: fastlane ios beta
