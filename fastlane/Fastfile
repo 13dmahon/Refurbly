@@ -3,6 +3,7 @@ default_platform(:ios)
 platform :ios do
   desc "Build & upload to TestFlight (Capacitor + match)"
   lane :beta do
+    # App Store Connect API key (matches your GitHub secrets)
     api_key = app_store_connect_api_key(
       key_id:      ENV["ASC_API_KEY_ID"],
       issuer_id:   ENV["ASC_API_ISSUER_ID"],
@@ -10,23 +11,27 @@ platform :ios do
       duration: 1200
     )
 
+    # Manage certs/profiles in your private signing repo
     match(
       type: "appstore",
       app_identifier: ENV["APP_IDENTIFIER"],
       git_url: ENV["MATCH_REPO"],
-      git_branch: "main",                # <- add this
+      git_branch: "main",
       username: ENV["APPLEID_USERNAME"],
       readonly: false
     )
 
+    # Build archive (pass Team ID to satisfy Xcode signing)
     gym(
       scheme: ENV["IOS_SCHEME"] || "App",
       workspace: ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
       configuration: "Release",
       export_method: "app-store",
-      include_bitcode: false
+      include_bitcode: false,
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['DEV_TEAM']} CODE_SIGNING_ALLOWED=YES"
     )
 
+    # Upload to TestFlight
     pilot(
       api_key: api_key,
       skip_submission: true,
