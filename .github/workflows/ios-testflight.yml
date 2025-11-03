@@ -35,7 +35,7 @@ jobs:
           echo "=== COMMIT ==="
           git log -1 --oneline
           echo "=== vite.config.js ==="
-          sed -n '1,120p' vite.config.js || true
+          sed -n '1,200p' vite.config.js || true
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -49,20 +49,24 @@ jobs:
           echo "=== Built files ==="
           ls -la dist/ || true
           echo "=== index.html (before patch) ==="
-          sed -n '1,120p' dist/index.html || true
+          sed -n '1,200p' dist/index.html || true
 
-      # Force absolute asset URLs + remove crossorigin (prevents generic 'Script error' in WKWebView)
+      # Force absolute asset URLs + remove crossorigin (prevents opaque 'Script error' in WKWebView)
       - name: Make asset URLs absolute + drop crossorigin
         run: |
-          # Ensure absolute asset URLs (BSD sed first, fallback to GNU sed)
-          sed -i '' 's|src="./assets/|src="/assets/|g' dist/index.html || sed -i 's|src="./assets/|src="/assets/|g' dist/index.html
-          sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
-          # Remove crossorigin (BSD/GNU compatible)
+          # BSD sed first (macOS), then GNU sed fallback
+          sed -i '' -E 's|(src|href)="\./assets/|\1="/assets/|g' dist/index.html || sed -i -E 's|(src|href)="\./assets/|\1="/assets/|g' dist/index.html
+          # Remove any form of crossorigin on links/scripts
           sed -i '' -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html || sed -i -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html
           echo "=== index.html (after patch) ==="
-          sed -n '1,120p' dist/index.html || true
+          sed -n '1,200p' dist/index.html || true
           echo "=== grep for crossorigin (should be empty) ==="
-          grep -n "crossorigin" dist/index.html || true
+          ! grep -n "crossorigin" dist/index.html || true
+
+      # Optional: stop alert popups from window.onerror blocking the UI while testing
+      - name: Neutralize window.onerror alert (optional)
+        run: |
+          sed -i '' 's/alert(/console.log(/g' dist/index.html || sed -i 's/alert(/console.log(/g' dist/index.html
 
       - name: Sync iOS platform (Capacitor runs pod install)
         run: npx cap sync ios
