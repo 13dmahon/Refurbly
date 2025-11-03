@@ -38,6 +38,8 @@ jobs:
           ls -la dist/
           echo "=== Assets ==="
           ls -la dist/assets/ || true
+          echo "=== index.html content ==="
+          cat dist/index.html
 
       - name: Sync iOS platform (Capacitor runs pod install)
         run: |
