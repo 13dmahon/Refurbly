@@ -3,7 +3,6 @@ default_platform(:ios)
 platform :ios do
   desc "Build & upload to TestFlight (Capacitor + match)"
   lane :beta do
-    # App Store Connect API key
     api_key = app_store_connect_api_key(
       key_id:      ENV["ASC_API_KEY_ID"],
       issuer_id:   ENV["ASC_API_ISSUER_ID"],
@@ -11,7 +10,6 @@ platform :ios do
       duration: 1200
     )
 
-    # Install certs + App Store profile via match
     match(
       type: "appstore",
       app_identifier: ENV["APP_IDENTIFIER"],
@@ -21,18 +19,29 @@ platform :ios do
       readonly: false
     )
 
-    # Build archive WITHOUT signing, then sign during export
+    # Read the exact App Store profile name match installed
+    mapping        = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
+    app_identifier = ENV["APP_IDENTIFIER"]
+    profile_name   = mapping[app_identifier] || mapping.values.first
+    UI.user_error!("Could not determine App Store provisioning profile name") unless profile_name
+    UI.message("Using provisioning profile: #{profile_name}")
+
     gym(
       scheme: ENV["IOS_SCHEME"] || "App",
       workspace: ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
       configuration: "Release",
       export_method: "app-store",
       include_bitcode: false,
-      # Don't sign during archive
-      xcargs: "CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
+
+      # Make export phase use the same profile
+      export_options: {
+        provisioningProfiles: { app_identifier => profile_name }
+      },
+
+      # Force manual signing during compile/archive (single-line to avoid shell splitting)
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['DEV_TEAM']} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=\"#{profile_name}\" CODE_SIGN_IDENTITY=\"Apple Distribution\" -allowProvisioningUpdates"
     )
 
-    # Upload to TestFlight
     pilot(
       api_key: api_key,
       skip_submission: true,
