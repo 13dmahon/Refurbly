@@ -4,11 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.refurbly.app',
   appName: 'Refurbly',
   webDir: 'dist',
-  server: {
-    androidScheme: 'https',
-    hostname: 'refurbly.app',
-    iosScheme: 'https',
-  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
