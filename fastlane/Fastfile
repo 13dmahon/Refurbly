@@ -1,22 +1,26 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build & upload to TestFlight"
+  desc "Build & upload to TestFlight (Capacitor + match)"
   lane :beta do
+    # App Store Connect API key (matches your secrets)
     api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_CONTENT"]
+      key_id:     ENV["ASC_API_KEY_ID"],
+      issuer_id:  ENV["ASC_API_ISSUER_ID"],
+      key_content: ENV["ASC_API_KEY_P8"],
+      duration: 1200
     )
 
+    # Signing via match (reads MATCH_REPO and MATCH_PASSWORD from env)
     match(
       type: "appstore",
       app_identifier: ENV["APP_IDENTIFIER"],
       git_url: ENV["MATCH_REPO"],
-      username: ENV["APPLE_ID"],
+      username: ENV["APPLEID_USERNAME"],
       readonly: false
     )
 
+    # Build
     gym(
       scheme: ENV["IOS_SCHEME"] || "App",
       workspace: ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
@@ -25,6 +29,11 @@ platform :ios do
       include_bitcode: false
     )
 
-    pilot(api_key: api_key, skip_waiting_for_build_processing: true)
+    # Upload to TestFlight
+    pilot(
+      api_key: api_key,
+      skip_submission: true,
+      skip_waiting_for_build_processing: true
+    )
   end
 end
