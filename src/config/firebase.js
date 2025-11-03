@@ -1,7 +1,11 @@
+console.log('🔥 Starting Firebase init...')
+
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+
+console.log('🔥 Firebase imports loaded')
 
 const firebaseConfig = {
   apiKey: "AIzaSyD07KVqjANE9V0V0RmycQU7Djum88Hr81w",
@@ -13,7 +17,16 @@ const firebaseConfig = {
   measurementId: "G-YN28QXJDE6"
 };
 
+console.log('🔥 Config ready')
+
 const app = initializeApp(firebaseConfig);
+console.log('✅ Firebase initialized')
+
 export const auth = getAuth(app);
+console.log('✅ Auth ready')
+
 export const db = getFirestore(app);
+console.log('✅ Firestore ready')
+
 export const functions = getFunctions(app, 'us-central1');
+console.log('✅ Functions ready')
