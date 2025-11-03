@@ -50,13 +50,16 @@ jobs:
           echo "=== index.html (before patch) ==="
           sed -n '1,200p' dist/index.html || true
 
-      # Force absolute asset URLs + remove crossorigin (prevents generic 'Script error' in WKWebView)
-      - name: Make asset URLs absolute + drop crossorigin
+      # Force absolute asset URLs + remove crossorigin + neutralize window.onerror alert
+      - name: Make asset URLs absolute + drop crossorigin + disable onerror alert
         run: |
-          # BSD sed first; if runner ever switches to GNU sed, use fallback
+          # BSD sed first; fallback to GNU sed if needed
           sed -i '' 's|src="./assets/|src="/assets/|g'  dist/index.html || sed -i 's|src="./assets/|src="/assets/|g'  dist/index.html
           sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
           sed -i '' -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html || sed -i -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html
+          # Replace any alert() in the onerror handler with console logging so it never blocks the UI
+          sed -i '' -E 's/alert\([^)]*\);/console.log("Global error:", msg, url, line, col, error);/g' dist/index.html || \
+          sed -i -E 's/alert\([^)]*\);/console.log("Global error:", msg, url, line, col, error);/g' dist/index.html
 
           echo "=== index.html (after patch) ==="
           sed -n '1,200p' dist/index.html || true
