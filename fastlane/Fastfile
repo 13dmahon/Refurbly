@@ -3,6 +3,10 @@ default_platform(:ios)
 platform :ios do
   desc "Build & upload to TestFlight (Capacitor + match)"
   lane :beta do
+    # CI-friendly environment (disables any UI prompts)
+    setup_ci
+
+    # App Store Connect API key (from GitHub Secrets)
     api_key = app_store_connect_api_key(
       key_id:      ENV["ASC_API_KEY_ID"],
       issuer_id:   ENV["ASC_API_ISSUER_ID"],
@@ -10,38 +14,52 @@ platform :ios do
       duration: 1200
     )
 
+    # Install certs & App Store provisioning profile from your private match repo
     match(
       type: "appstore",
       app_identifier: ENV["APP_IDENTIFIER"],
       git_url: ENV["MATCH_REPO"],
       git_branch: "main",
       username: ENV["APPLEID_USERNAME"],
-      readonly: false
+      readonly: false,
+
+      # Create & use a dedicated keychain on the runner (prevents UI popups)
+      create_keychain: true,
+      keychain_name: "ios-build.keychain",
+      keychain_password: ENV["KEYCHAIN_PASSWORD"]
+      # MATCH_PASSWORD is picked up automatically from ENV if set
     )
 
-    # Read the exact App Store profile name match installed
+    # Determine the exact provisioning profile name that match installed
     mapping        = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
     app_identifier = ENV["APP_IDENTIFIER"]
     profile_name   = mapping[app_identifier] || mapping.values.first
     UI.user_error!("Could not determine App Store provisioning profile name") unless profile_name
     UI.message("Using provisioning profile: #{profile_name}")
 
+    # Build + sign (manual) -> archive -> export -> .ipa
     gym(
-      scheme: ENV["IOS_SCHEME"] || "App",
-      workspace: ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
+      scheme:       ENV["IOS_SCHEME"]    || "App",
+      workspace:    ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
       configuration: "Release",
       export_method: "app-store",
       include_bitcode: false,
 
-      # Make export phase use the same profile
+      # Ensure export uses the same profile
       export_options: {
+        signingStyle: "manual",
         provisioningProfiles: { app_identifier => profile_name }
       },
 
-      # Force manual signing during compile/archive (single-line to avoid shell splitting)
-      xcargs: "DEVELOPMENT_TEAM=#{ENV['DEV_TEAM']} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=\"#{profile_name}\" CODE_SIGN_IDENTITY=\"Apple Distribution\" -allowProvisioningUpdates"
+      # Force manual signing during archive with your Team ID and profile
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['DEV_TEAM']} " \
+              "CODE_SIGN_STYLE=Manual " \
+              "PROVISIONING_PROFILE_SPECIFIER=\"#{profile_name}\" " \
+              "CODE_SIGN_IDENTITY=\"Apple Distribution\" " \
+              "-allowProvisioningUpdates"
     )
 
+    # Upload to TestFlight
     pilot(
       api_key: api_key,
       skip_submission: true,
