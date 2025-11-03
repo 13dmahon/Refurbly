@@ -33,7 +33,7 @@ jobs:
 
       - name: Install deps & build web app
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Sync iOS platform (Capacitor runs pod install)
