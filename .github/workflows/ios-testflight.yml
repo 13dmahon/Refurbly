@@ -1,0 +1,63 @@
+name: iOS TestFlight (Capacitor + Fastlane + Match)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "ios/**"
+      - "src/**"
+      - "package.json"
+      - "fastlane/**"
+      - ".github/workflows/ios-testflight.yml"
+
+jobs:
+  build-upload:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps & build web app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync iOS platform
+        run: |
+          npx cap sync ios
+          cd ios && pod install --repo-update && cd ..
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      - name: Build and upload to TestFlight
+        env:
+          ASC_KEY_ID:      ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID:   ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+
+          APPLE_ID:        ${{ secrets.APPLE_ID }}
+          APP_IDENTIFIER:  ${{ secrets.APP_IDENTIFIER }}
+          DEV_TEAM:        ${{ secrets.DEV_TEAM }}
+
+          MATCH_REPO:      ${{ secrets.MATCH_REPO }}
+          MATCH_PASSWORD:  ${{ secrets.MATCH_PASSWORD }}
+
+          IOS_WORKSPACE:   ios/App/App.xcworkspace
+          IOS_SCHEME:      App
+        run: fastlane ios beta
