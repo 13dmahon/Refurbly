@@ -15,9 +15,15 @@ on:
       - "fastlane/**"
       - ".github/workflows/ios-testflight.yml"
 
+# Only keep the newest run per branch
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-upload:
     runs-on: macos-15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +35,7 @@ jobs:
           echo "=== COMMIT ==="
           git log -1 --oneline
           echo "=== vite.config.js ==="
-          cat vite.config.js || true
+          sed -n '1,120p' vite.config.js || true
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -41,20 +47,19 @@ jobs:
           npm install
           npm run build
           echo "=== Built files ==="
-          ls -la dist/
+          ls -la dist/ || true
           echo "=== index.html (before patch) ==="
           sed -n '1,120p' dist/index.html || true
 
-      # >>>> IMPORTANT: force absolute asset URLs + remove crossorigin
-      - name: Make asset URLs absolute + drop crossorigin (prevents 'Script error')
+      # Force absolute asset URLs + remove crossorigin (prevents generic 'Script error' in WKWebView)
+      - name: Make asset URLs absolute + drop crossorigin
         run: |
-          # macOS runner uses BSD sed; attempt BSD first, then GNU fallback
+          # BSD sed first (macOS), fall back to GNU sed if needed
           sed -i '' 's|src="./assets/|src="/assets/|g' dist/index.html || sed -i 's|src="./assets/|src="/assets/|g' dist/index.html
           sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
           sed -i '' 's/\scrossorigin//g' dist/index.html || sed -i 's/\scrossorigin//g' dist/index.html
           echo "=== index.html (after patch) ==="
           sed -n '1,120p' dist/index.html || true
-      # <<<<
 
       - name: Sync iOS platform (Capacitor runs pod install)
         run: npx cap sync ios
@@ -69,14 +74,18 @@ jobs:
 
       - name: Build and upload to TestFlight
         env:
+          # App Store Connect API key (from secrets)
           ASC_API_KEY_ID:    ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8:    ${{ secrets.ASC_API_KEY_P8 }}
+          # Apple / app identifiers
           APPLEID_USERNAME:  ${{ secrets.APPLEID_USERNAME }}
           APP_IDENTIFIER:    ${{ secrets.APP_IDENTIFIER }}
           DEV_TEAM:          ${{ secrets.DEV_TEAM }}
+          # fastlane match repo + encryption password
           MATCH_REPO:        ${{ secrets.MATCH_REPO }}
           MATCH_PASSWORD:    ${{ secrets.MATCH_PASSWORD }}
+          # Capacitor iOS workspace/scheme (defaults)
           IOS_WORKSPACE:     ios/App/App.xcworkspace
           IOS_SCHEME:        App
         run: fastlane ios beta
