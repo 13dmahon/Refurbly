@@ -15,7 +15,6 @@ on:
       - "fastlane/**"
       - ".github/workflows/ios-testflight.yml"
 
-# Only keep the newest run per branch
 concurrency:
   group: ios-testflight-${{ github.ref }}
   cancel-in-progress: true
@@ -51,22 +50,18 @@ jobs:
           echo "=== index.html (before patch) ==="
           sed -n '1,200p' dist/index.html || true
 
-      # Force absolute asset URLs + remove crossorigin (prevents opaque 'Script error' in WKWebView)
+      # Force absolute asset URLs + remove crossorigin (prevents generic 'Script error' in WKWebView)
       - name: Make asset URLs absolute + drop crossorigin
         run: |
-          # BSD sed first (macOS), then GNU sed fallback
-          sed -i '' -E 's|(src|href)="\./assets/|\1="/assets/|g' dist/index.html || sed -i -E 's|(src|href)="\./assets/|\1="/assets/|g' dist/index.html
-          # Remove any form of crossorigin on links/scripts
+          # BSD sed first; if runner ever switches to GNU sed, use fallback
+          sed -i '' 's|src="./assets/|src="/assets/|g'  dist/index.html || sed -i 's|src="./assets/|src="/assets/|g'  dist/index.html
+          sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
           sed -i '' -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html || sed -i -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html
+
           echo "=== index.html (after patch) ==="
           sed -n '1,200p' dist/index.html || true
           echo "=== grep for crossorigin (should be empty) ==="
           ! grep -n "crossorigin" dist/index.html || true
-
-      # Optional: stop alert popups from window.onerror blocking the UI while testing
-      - name: Neutralize window.onerror alert (optional)
-        run: |
-          sed -i '' 's/alert(/console.log(/g' dist/index.html || sed -i 's/alert(/console.log(/g' dist/index.html
 
       - name: Sync iOS platform (Capacitor runs pod install)
         run: npx cap sync ios
@@ -81,18 +76,14 @@ jobs:
 
       - name: Build and upload to TestFlight
         env:
-          # App Store Connect API key (from secrets)
           ASC_API_KEY_ID:    ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8:    ${{ secrets.ASC_API_KEY_P8 }}
-          # Apple / app identifiers
           APPLEID_USERNAME:  ${{ secrets.APPLEID_USERNAME }}
           APP_IDENTIFIER:    ${{ secrets.APP_IDENTIFIER }}
           DEV_TEAM:          ${{ secrets.DEV_TEAM }}
-          # fastlane match repo + encryption password
           MATCH_REPO:        ${{ secrets.MATCH_REPO }}
           MATCH_PASSWORD:    ${{ secrets.MATCH_PASSWORD }}
-          # Capacitor iOS workspace/scheme (defaults)
           IOS_WORKSPACE:     ios/App/App.xcworkspace
           IOS_SCHEME:        App
         run: fastlane ios beta
