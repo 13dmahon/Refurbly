@@ -31,6 +31,11 @@ platform :ios do
     UI.user_error!("Could not determine App Store provisioning profile name") unless profile_name
     UI.message("Using provisioning profile: #{profile_name}")
 
+
+    # Auto-increment build number
+    increment_build_number(
+      xcodeproj: "ios/App/App.xcodeproj"
+    )
     # Build + sign (manual) -> archive -> export -> .ipa
     gym(
       scheme:       ENV["IOS_SCHEME"]    || "App",
