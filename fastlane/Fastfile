@@ -21,42 +21,18 @@ platform :ios do
       readonly: false
     )
 
-    # Pull the exact App Store profile name & UUID that match installed
-    mapping          = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
-    app_identifier   = ENV["APP_IDENTIFIER"]
-    profile_name     = mapping[app_identifier] || mapping.values.first
-    uuid_env_key     = "sigh_#{app_identifier}_appstore".gsub('.', '_').gsub('-', '_')
-    profile_uuid     = ENV[uuid_env_key]
-
-    UI.user_error!("Could not determine App Store provisioning profile name") unless profile_name
-    UI.user_error!("Could not determine App Store provisioning profile UUID") unless profile_uuid
-    UI.message("Using profile: #{profile_name} (UUID: #{profile_uuid})")
-
+    # Build archive WITHOUT signing, then sign during export
     gym(
       scheme: ENV["IOS_SCHEME"] || "App",
       workspace: ENV["IOS_WORKSPACE"] || "ios/App/App.xcworkspace",
       configuration: "Release",
       export_method: "app-store",
       include_bitcode: false,
-
-      # Ensure export step also uses the correct profile
-      export_options: {
-        provisioningProfiles: { app_identifier => profile_name }
-      },
-
-      # Force manual signing during compile/archive (cover all variants)
-      xcargs: %Q(
-        DEVELOPMENT_TEAM=#{ENV['DEV_TEAM']}
-        CODE_SIGN_STYLE=Manual
-        CODE_SIGN_IDENTITY="Apple Distribution"
-        PROVISIONING_PROFILE_SPECIFIER="#{profile_name}"
-        PROVISIONING_PROFILE="#{profile_uuid}"
-        PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]="#{profile_name}"
-        PROVISIONING_PROFILE[sdk=iphoneos*]="#{profile_uuid}"
-        CODE_SIGNING_ALLOWED=YES
-      ).squeeze(' ').strip
+      # Don't sign during archive
+      xcargs: "CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO"
     )
 
+    # Upload to TestFlight
     pilot(
       api_key: api_key,
       skip_submission: true,
