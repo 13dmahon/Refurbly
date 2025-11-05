@@ -15,8 +15,6 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
-		 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 		62BAA2BCF7F94C56BC55AFB1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; name = "GoogleService-Info.plist"; path = "App/GoogleService-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; }; /* GoogleService-Info.plist */; };
-		111E7BB48CBA63AD5BC262D2 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 		 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 		62BAA2BCF7F94C56BC55AFB1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; name = "GoogleService-Info.plist"; path = "App/GoogleService-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; }; /* GoogleService-Info.plist */; }; /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -162,9 +160,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								 				111E7BB48CBA63AD5BC262D2 /* GoogleService-Info.plist in Resources */,
-/* GoogleService-Info.plist in Resources */,
-504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
+				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,

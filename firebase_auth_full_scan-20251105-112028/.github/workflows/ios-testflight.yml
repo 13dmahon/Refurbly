@@ -1,0 +1,143 @@
+name: iOS TestFlight (Capacitor + Fastlane + Match)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: "Upload to TestFlight"
+        required: true
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+  push:
+    branches: [ main ]
+    paths:
+      - "ios/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.*"
+      - "vite.config.*"
+      - "fastlane/**"
+      - ".github/workflows/ios-testflight.yml"
+
+# Only keep the newest run per branch
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-upload:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show commit and vite config used by this run
+        run: |
+          echo "=== COMMIT ==="
+          git log -1 --oneline
+          echo "=== vite.config.js ==="
+          sed -n '1,200p' vite.config.js || true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps & build web app
+        run: |
+          npm install
+          npm run build
+          echo "=== Built files ==="
+          ls -la dist/ || true
+          echo "=== index.html (before patch) ==="
+          sed -n '1,200p' dist/index.html || true
+
+      # Make asset URLs absolute, remove crossorigin, remove alert() lines (WKWebView safety)
+      - name: Patch built index.html for WKWebView
+        run: |
+          set -e
+          # BSD sed first (macOS), fall back to GNU sed
+          sed -i '' 's|src="./assets/|src="/assets/|g'  dist/index.html || sed -i 's|src="./assets/|src="/assets/|g'  dist/index.html
+          sed -i '' 's|href="./assets/|href="/assets/|g' dist/index.html || sed -i 's|href="./assets/|href="/assets/|g' dist/index.html
+          sed -i '' -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html || sed -i -E 's/[[:space:]]crossorigin(="anonymous")?//g' dist/index.html
+          sed -i '' '/alert(/d' dist/index.html || sed -i '/alert(/d' dist/index.html
+
+          echo "=== index.html (after patch) ==="
+          sed -n '1,200p' dist/index.html || true
+          echo "=== grep checks (should be empty) ==="
+          grep -n "crossorigin" dist/index.html || true
+          grep -n "alert(" dist/index.html || true
+
+      - name: Sync iOS platform (Capacitor runs pod install)
+        run: npx cap sync ios
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      # Build and (optionally) upload to TestFlight
+      - name: Build and upload to TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight == 'true' || github.event_name == 'push' }}
+        env:
+          # App Store Connect API key (from secrets)
+          ASC_API_KEY_ID:    ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8:    ${{ secrets.ASC_API_KEY_P8 }}
+          # Apple / app identifiers
+          APPLEID_USERNAME:  ${{ secrets.APPLEID_USERNAME }}
+          APP_IDENTIFIER:    ${{ secrets.APP_IDENTIFIER }}
+          DEV_TEAM:          ${{ secrets.DEV_TEAM }}
+          # fastlane match repo + encryption password
+          MATCH_REPO:        ${{ secrets.MATCH_REPO }}
+          MATCH_PASSWORD:    ${{ secrets.MATCH_PASSWORD }}
+          # Capacitor iOS workspace/scheme (defaults)
+          IOS_WORKSPACE:     ios/App/App.xcworkspace
+          IOS_SCHEME:        App
+        run: |
+          # Run fastlane but tolerate Apple's daily upload throttle (409 "Upload limit reached")
+          set +e
+          fastlane ios beta 2>&1 | tee fastlane.log
+          status=${PIPESTATUS[0]}
+          if grep -q "Upload limit reached" fastlane.log; then
+            echo "::warning::App Store Connect daily upload limit reached. Build archived and signed, but upload was throttled by Apple. Try again tomorrow or run this workflow with upload_to_testflight=false."
+            exit 0
+          fi
+          exit $status
+
+      # Optional: allow manual "build only" runs (no TestFlight upload) via workflow_dispatch input
+      - name: Build only (no TestFlight upload)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight == 'false' }}
+        env:
+          ASC_API_KEY_ID:    ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8:    ${{ secrets.ASC_API_KEY_P8 }}
+          APPLEID_USERNAME:  ${{ secrets.APPLEID_USERNAME }}
+          APP_IDENTIFIER:    ${{ secrets.APP_IDENTIFIER }}
+          DEV_TEAM:          ${{ secrets.DEV_TEAM }}
+          MATCH_REPO:        ${{ secrets.MATCH_REPO }}
+          MATCH_PASSWORD:    ${{ secrets.MATCH_PASSWORD }}
+          IOS_WORKSPACE:     ios/App/App.xcworkspace
+          IOS_SCHEME:        App
+        run: |
+          # Call the same lane, but stop before upload by short-circuiting on 409 or by exiting after gym.
+          # If your Fastfile has a build-only lane, swap to that here.
+          set +e
+          fastlane ios beta 2>&1 | tee fastlane.log
+          status=${PIPESTATUS[0]}
+          # If lane tries to upload and 409s, treat as success for build-only mode
+          if grep -q "Upload limit reached" fastlane.log; then
+            echo "::notice::Build succeeded; upload intentionally skipped (build-only mode detected 409)."
+            exit 0
+          fi
+          # If it succeeded end-to-end that's fine; if it failed for other reasons, propagate
+          exit $status

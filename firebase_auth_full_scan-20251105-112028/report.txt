@@ -1,0 +1,101 @@
+# Firebase + iOS Auth Full Scan (2025-11-05T11:20:28+00:00)
+
+
+============================================================
+🔎 ENVIRONMENT SNAPSHOT
+
+============================================================
+pwd: /home/ascensionfd50/Refurbly
+node: v22.21.0
+npm:  11.6.2
+python3: Python 3.12.3
+
+
+============================================================
+🔎 GIT & WORKFLOWS
+
+============================================================
+Last 5 commits:
+f427909 Add required Firebase/Auth and Firebase/Firestore pods for Capacitor plugin
+bac0594 Restore normal app (disable diagnostic page)
+05948a5 Downgrade Firebase to v11 and add Capacitor Firebase plugin
+2fadf03 Add Capacitor Firebase Authentication plugin for native iOS support
+fc82552 Add Firebase diagnostic page to debug connection timeout
+
+Workflow files:
+ios-testflight.yml
+
+--- .github/workflows/ios-testflight.yml ---
+22:      - "fastlane/**"
+77:      - name: Sync iOS platform (Capacitor runs pod install)
+78:        run: npx cap sync ios
+86:        run: gem install fastlane --no-document
+100:          # fastlane match repo + encryption password
+107:          # Run fastlane but tolerate Apple's daily upload throttle (409 "Upload limit reached")
+109:          fastlane ios beta 2>&1 | tee fastlane.log
+111:          if grep -q "Upload limit reached" fastlane.log; then
+135:          fastlane ios beta 2>&1 | tee fastlane.log
+138:          if grep -q "Upload limit reached" fastlane.log; then
+
+
+============================================================
+🔎 NPM DEPENDENCIES (Firebase & Capacitor Firebase Auth)
+
+============================================================
+Relevant deps in package.json:
+17:    "@capacitor-firebase/authentication": "^7.4.0",
+20:    "@capacitor/core": "^7.4.4",
+21:    "@capacitor/ios": "^7.4.4",
+23:    "firebase": "^11.10.0",
+
+============================================================
+🔎 CAPACITOR CONFIG
+
+============================================================
+--- capacitor.config.ts ---
+     1	import type { CapacitorConfig } from '@capacitor/cli';
+     2	
+     3	const config: CapacitorConfig = {
+     4	  appId: 'com.refurbly.app',
+     5	  appName: 'Refurbly',
+     6	  webDir: 'dist',
+     7	  server: {
+     8	    cleartext: true,
+     9	    allowNavigation: [
+    10	      '*.firebaseapp.com',
+    11	      '*.googleapis.com',
+    12	      '*.google.com'
+    13	    ]
+    14	  },
+    15	  plugins: {
+    16	    SplashScreen: {
+    17	      launchShowDuration: 2000,
+    18	      backgroundColor: '#3B82F6',
+    19	      showSpinner: false,
+    20	    },
+    21	    FirebaseAuthentication: {
+    22	      skipNativeAuth: true,
+    23	      providers: ['apple.com', 'google.com'],
+    24	    },
+    25	  },
+    26	};
+    27	
+    28	export default config;
+
+Quick grep:
+7:  server: {
+8:    cleartext: true,
+9:    allowNavigation: [
+21:    FirebaseAuthentication: {
+22:      skipNativeAuth: true,
+23:      providers: ['apple.com', 'google.com'],
+
+--- capacitor.config.json ---
+     1	{
+     2	  "appId": "com.refurbly.app",
+     3	  "appName": "Refurbly",
+     4	  "webDir": "dist"
+     5	}
+
+Quick grep:
+

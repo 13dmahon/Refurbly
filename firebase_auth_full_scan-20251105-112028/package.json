@@ -14,6 +14,7 @@
     "open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^7.4.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
@@ -37,7 +38,6 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3",
-    "vite": "^7.1.7",
-    "xcode": "^3.0.1"
+    "vite": "^7.1.7"
   }
 }
