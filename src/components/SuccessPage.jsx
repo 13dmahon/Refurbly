@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 export default function SuccessPage() {
@@ -12,7 +11,7 @@ export default function SuccessPage() {
   useEffect(() => {
     const upgradeToPremium = async () => {
       if (user) {
-        await setDoc(doc(db, 'users', user.uid), {
+        await FirestoreWrapper.setDoc('users', user.uid, {
           isPremium: true,
           upgradedAt: new Date().toISOString(),
         }, { merge: true });

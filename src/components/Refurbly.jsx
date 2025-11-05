@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { FirestoreWrapper } from '../services/firebase-wrapper';
 import PaymentButton from './PaymentButton';
 import { useAuth } from '../hooks/useAuth.jsx';
 
@@ -158,7 +157,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
       if (isEditing) {
         // Update existing quote
-        await updateDoc(doc(db, 'quotes', editingQuote.id), quoteData);
+        await FirestoreWrapper.updateDoc('quotes', editingQuote.id, quoteData);
         setSaveSuccess(true);
         setTimeout(() => {
           if (onEditComplete) onEditComplete();
@@ -166,7 +165,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       } else {
         // Create new quote
         quoteData.createdAt = new Date().toISOString();
-        await addDoc(collection(db, 'quotes'), quoteData);
+        await FirestoreWrapper.addDoc('quotes', quoteData);
         setSaveSuccess(true);
         if (onQuoteSaved) onQuoteSaved();
         setTimeout(() => setSaveSuccess(false), 3000);

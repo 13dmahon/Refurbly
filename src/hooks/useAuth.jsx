@@ -1,12 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { FirebaseAuthWrapper, FirestoreWrapper } from '../services/firebase-wrapper';
 
 const AuthContext = createContext();
 
@@ -19,7 +12,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('🔐 [1/3] Setting up Firebase Auth listener...');
     
-    // AGGRESSIVE 5-second timeout
     const timeoutId = setTimeout(() => {
       console.error('⏰ TIMEOUT: Firebase Auth did not respond in 30 seconds');
       setError('Firebase connection timeout. Please check your internet connection.');
@@ -27,7 +19,7 @@ export function AuthProvider({ children }) {
     }, 30000);
 
     try {
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const unsubscribe = FirebaseAuthWrapper.onAuthStateChanged(async (firebaseUser) => {
         clearTimeout(timeoutId);
         console.log('🔐 [2/3] Auth state changed:', firebaseUser?.email || 'no user');
         
@@ -35,8 +27,7 @@ export function AuthProvider({ children }) {
           setUser(firebaseUser);
           
           try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userDoc = await getDoc(userDocRef);
+            const userDoc = await FirestoreWrapper.getDoc('users', firebaseUser.uid);
             
             if (userDoc.exists()) {
               const userData = userDoc.data();
@@ -62,7 +53,7 @@ export function AuthProvider({ children }) {
 
       return () => {
         clearTimeout(timeoutId);
-        unsubscribe();
+        if (unsubscribe) unsubscribe();
       };
     } catch (error) {
       console.error('❌ FATAL: Failed to setup auth listener:', error);
@@ -73,9 +64,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    const userDocRef = doc(db, 'users', result.user.uid);
-    const userDoc = await getDoc(userDocRef);
+    const result = await FirebaseAuthWrapper.signIn(email, password);
+    const userDoc = await FirestoreWrapper.getDoc('users', result.user.uid);
     if (userDoc.exists()) {
       setIsPremium(userDoc.data().isPremium === true);
     }
@@ -83,8 +73,8 @@ export function AuthProvider({ children }) {
   };
 
   const signup = async (email, password) => {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, 'users', result.user.uid), {
+    const result = await FirebaseAuthWrapper.signUp(email, password);
+    await FirestoreWrapper.setDoc('users', result.user.uid, {
       email: email,
       isPremium: false,
       createdAt: new Date().toISOString(),
@@ -93,7 +83,7 @@ export function AuthProvider({ children }) {
     return result;
   };
 
-  const logout = () => signOut(auth);
+  const logout = () => FirebaseAuthWrapper.signOut();
 
   const value = {
     user,
@@ -105,7 +95,6 @@ export function AuthProvider({ children }) {
     logout,
   };
 
-  // Show error overlay if Firebase fails
   if (error) {
     return (
       <div style={{

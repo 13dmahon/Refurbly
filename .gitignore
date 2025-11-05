@@ -11,3 +11,4 @@ android/app/build/
 android/.idea/
 .idea/
 # Keep local.properties for CI/CD
+*.backup
