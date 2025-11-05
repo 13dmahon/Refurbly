@@ -28,5 +28,4 @@ window.addEventListener('unhandledrejection', (e) => {
 })
 
 window.__log = (msg) => showOverlay(String(msg))
-
 console.log('✅ Error overlay loaded')
