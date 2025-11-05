@@ -1,4 +1,4 @@
-import './setupGlobalErrorOverlay'
+if (import.meta.env.DEV) { await import('./setupGlobalErrorOverlay.js') }
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Routes, Route } from 'react-router-dom'

@@ -1,8 +1,8 @@
-// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import removeCrossorigin from './vite-plugin-remove-crossorigin.js'
 
 export default defineConfig({
-  plugins: [react()],
-  base: '/', // ensure built HTML uses /assets/... not ./assets/ 
+  plugins: [react(), removeCrossorigin()],
+  base: '/',
 })
