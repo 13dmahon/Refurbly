@@ -9,7 +9,11 @@ const config: CapacitorConfig = {
     allowNavigation: [
       '*.firebaseapp.com',
       '*.googleapis.com',
-      '*.google.com'
+      '*.google.com',
+      'firebaseinstallations.googleapis.com',
+      'firebaseremoteconfig.googleapis.com',
+      'firestore.googleapis.com',
+      'identitytoolkit.googleapis.com'
     ]
   },
   plugins: {
