@@ -19,7 +19,7 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     FirebaseAuthentication: {
-      skipNativeAuth: false,
+      skipNativeAuth: true,
       providers: ['apple.com', 'google.com'],
     },
   },
