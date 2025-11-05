@@ -49,6 +49,24 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+t<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.942940274103-r1ngc14tfn97bgmb9kn4kgcn6kmjqp7l</string>
+			</array>
+		</dict>
+	</array>
 	</dict>
+t<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.942940274103-r1ngc14tfn97bgmb9kn4kgcn6kmjqp7l</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
