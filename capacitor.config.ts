@@ -1,4 +1,3 @@
-// capacitor.config.ts
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -18,6 +17,10 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       backgroundColor: '#3B82F6',
       showSpinner: false,
+    },
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ['apple.com', 'google.com'],
     },
   },
 };
