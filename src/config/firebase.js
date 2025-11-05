@@ -1,8 +1,8 @@
 console.log('🔥 Starting Firebase init...')
 
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeAuth, browserLocalPersistence } from 'firebase/auth'
+import { initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore'
 import { getFunctions } from 'firebase/functions'
 
 console.log('🔥 Firebase imports loaded')
@@ -22,11 +22,15 @@ console.log('🔥 Config ready')
 const app = initializeApp(firebaseConfig)
 console.log('✅ Firebase initialized')
 
-export const auth = getAuth(app)
-console.log('✅ Auth ready')
+export const auth = initializeAuth(app, {
+  persistence: browserLocalPersistence,
+})
+console.log('✅ Auth ready with browser persistence')
 
-export const db = getFirestore(app)
-console.log('✅ Firestore ready')
+export const db = initializeFirestore(app, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED
+})
+console.log('✅ Firestore ready with unlimited cache')
 
 export const functions = getFunctions(app, 'us-central1')
 console.log('✅ Functions ready')
