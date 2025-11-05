@@ -21,10 +21,10 @@ export function AuthProvider({ children }) {
     
     // AGGRESSIVE 5-second timeout
     const timeoutId = setTimeout(() => {
-      console.error('⏰ TIMEOUT: Firebase Auth did not respond in 5 seconds');
+      console.error('⏰ TIMEOUT: Firebase Auth did not respond in 30 seconds');
       setError('Firebase connection timeout. Please check your internet connection.');
       setLoading(false);
-    }, 5000);
+    }, 30000);
 
     try {
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
