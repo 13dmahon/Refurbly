@@ -10,42 +10,47 @@ const AUTO_SQM = {
   maisonette: { 2: 70, 3: 90, 4: 110, 5: 135 }
 };
 
-// NEW RATES STRUCTURE with Labour + Materials
+// HOURLY RATES + MATERIALS
 const RATES = {
-  // Per sqm rates
   decoration: {
-    labour: { budget: 8, standard: 12, premium: 18 },    // £ per sqm
-    materials: { budget: 5, standard: 8, premium: 15 }   // £ per sqm
+    hourlyRate: { budget: 20, standard: 25, premium: 35 },
+    hoursPerSqm: 0.5,
+    materialsPerSqm: { budget: 5, standard: 8, premium: 15 }
   },
   flooring: {
-    labour: { budget: 15, standard: 20, premium: 30 },
-    materials: { budget: 20, standard: 40, premium: 70 }
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerSqm: 0.3,
+    materialsPerSqm: { budget: 20, standard: 40, premium: 70 }
   },
   plastering: {
-    labour: { budget: 25, standard: 35, premium: 50 },
-    materials: { budget: 8, standard: 12, premium: 18 }
+    hourlyRate: { budget: 30, standard: 40, premium: 50 },
+    hoursPerSqm: 0.4,
+    materialsPerSqm: { budget: 8, standard: 12, premium: 18 }
   },
-  
-  // Fixed rates
   kitchen: {
-    labour: { budget: 1500, standard: 2000, premium: 3000 },
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hours: { budget: 40, standard: 50, premium: 80 },
     materials: { budget: 3500, standard: 6000, premium: 12000 }
   },
   bathroom: {
-    labour: { budget: 1200, standard: 1800, premium: 2500 },
-    materials: { budget: 1800, standard: 2700, premium: 5000 }
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerBathroom: { budget: 30, standard: 40, premium: 60 },
+    materialsPerBathroom: { budget: 1800, standard: 2700, premium: 5000 }
   },
   rewire: {
-    labour: { budget: 1500, standard: 2000, premium: 3000 },
+    hourlyRate: { budget: 35, standard: 40, premium: 50 },
+    hours: { budget: 50, standard: 60, premium: 80 },
     materials: { budget: 1000, standard: 1500, premium: 2000 }
   },
   heating: {
-    labour: { budget: 1500, standard: 2000, premium: 2500 },
+    hourlyRate: { budget: 30, standard: 35, premium: 45 },
+    hours: { budget: 40, standard: 50, premium: 60 },
     materials: { budget: 1500, standard: 2000, premium: 3500 }
   },
   windows: {
-    labour: { budget: 1000, standard: 1500, premium: 2000 },
-    materials: { budget: 3000, standard: 4500, premium: 7000 }
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerWindow: { budget: 2, standard: 3, premium: 4 },
+    materialsPerWindow: { budget: 400, standard: 600, premium: 1000 }
   }
 };
 
@@ -62,7 +67,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     propertyType: 'house',
     location: '',
     quality: 'standard',
-    // What needs doing (checkboxes)
     needsDecoration: true,
     needsFlooring: true,
     needsPlastering: false,
@@ -103,71 +107,149 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     const propertyType = formData.propertyType;
     const quality = formData.quality;
     
-    // Auto-calculate sqm
     const totalSqm = AUTO_SQM[propertyType]?.[bedrooms] || 75;
+    const estimatedWindows = bedrooms * 2 + 2; // Rough estimate
     
-    let labourBreakdown = {};
-    let materialsBreakdown = {};
+    let labourDetails = {};
+    let materialsDetails = {};
     
-    // Calculate costs based on what's needed
     if (formData.needsDecoration) {
-      labourBreakdown.decoration = totalSqm * RATES.decoration.labour[quality];
-      materialsBreakdown.decoration = totalSqm * RATES.decoration.materials[quality];
+      const hours = Math.round(totalSqm * RATES.decoration.hoursPerSqm);
+      const hourlyRate = RATES.decoration.hourlyRate[quality];
+      labourDetails.decoration = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Decoration'
+      };
+      materialsDetails.decoration = {
+        amount: totalSqm * RATES.decoration.materialsPerSqm[quality],
+        name: `Paint & decorating materials (${totalSqm}sqm)`
+      };
     }
     
     if (formData.needsFlooring) {
-      labourBreakdown.flooring = totalSqm * RATES.flooring.labour[quality];
-      materialsBreakdown.flooring = totalSqm * RATES.flooring.materials[quality];
+      const hours = Math.round(totalSqm * RATES.flooring.hoursPerSqm);
+      const hourlyRate = RATES.flooring.hourlyRate[quality];
+      labourDetails.flooring = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Flooring Installation'
+      };
+      materialsDetails.flooring = {
+        amount: totalSqm * RATES.flooring.materialsPerSqm[quality],
+        name: `Flooring materials (${totalSqm}sqm)`
+      };
     }
     
     if (formData.needsPlastering) {
-      labourBreakdown.plastering = totalSqm * RATES.plastering.labour[quality];
-      materialsBreakdown.plastering = totalSqm * RATES.plastering.materials[quality];
+      const hours = Math.round(totalSqm * RATES.plastering.hoursPerSqm);
+      const hourlyRate = RATES.plastering.hourlyRate[quality];
+      labourDetails.plastering = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Plastering'
+      };
+      materialsDetails.plastering = {
+        amount: totalSqm * RATES.plastering.materialsPerSqm[quality],
+        name: `Plastering materials (${totalSqm}sqm)`
+      };
     }
     
     if (formData.needsKitchen) {
-      labourBreakdown.kitchen = RATES.kitchen.labour[quality];
-      materialsBreakdown.kitchen = RATES.kitchen.materials[quality];
+      const hours = RATES.kitchen.hours[quality];
+      const hourlyRate = RATES.kitchen.hourlyRate[quality];
+      labourDetails.kitchen = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Kitchen Installation'
+      };
+      materialsDetails.kitchen = {
+        amount: RATES.kitchen.materials[quality],
+        name: 'Kitchen units & appliances'
+      };
     }
     
     if (formData.needsBathroom) {
-      labourBreakdown.bathrooms = RATES.bathroom.labour[quality] * bathrooms;
-      materialsBreakdown.bathrooms = RATES.bathroom.materials[quality] * bathrooms;
+      const hours = RATES.bathroom.hoursPerBathroom[quality] * bathrooms;
+      const hourlyRate = RATES.bathroom.hourlyRate[quality];
+      labourDetails.bathrooms = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: `Bathroom Installation (${bathrooms})`
+      };
+      materialsDetails.bathrooms = {
+        amount: RATES.bathroom.materialsPerBathroom[quality] * bathrooms,
+        name: `Bathroom suite & tiles (${bathrooms})`
+      };
     }
     
     if (formData.needsRewire) {
-      labourBreakdown.rewire = RATES.rewire.labour[quality];
-      materialsBreakdown.rewire = RATES.rewire.materials[quality];
+      const hours = RATES.rewire.hours[quality];
+      const hourlyRate = RATES.rewire.hourlyRate[quality];
+      labourDetails.rewire = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Full Electrical Rewire'
+      };
+      materialsDetails.rewire = {
+        amount: RATES.rewire.materials[quality],
+        name: 'Electrical materials'
+      };
     }
     
     if (formData.needsHeating) {
-      labourBreakdown.heating = RATES.heating.labour[quality];
-      materialsBreakdown.heating = RATES.heating.materials[quality];
+      const hours = RATES.heating.hours[quality];
+      const hourlyRate = RATES.heating.hourlyRate[quality];
+      labourDetails.heating = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: 'Heating System Installation'
+      };
+      materialsDetails.heating = {
+        amount: RATES.heating.materials[quality],
+        name: 'Boiler & radiators'
+      };
     }
     
     if (formData.needsWindows) {
-      labourBreakdown.windows = RATES.windows.labour[quality];
-      materialsBreakdown.windows = RATES.windows.materials[quality];
+      const hours = RATES.windows.hoursPerWindow[quality] * estimatedWindows;
+      const hourlyRate = RATES.windows.hourlyRate[quality];
+      labourDetails.windows = {
+        hourlyRate,
+        hours,
+        total: hours * hourlyRate,
+        name: `Window Installation (~${estimatedWindows} windows)`
+      };
+      materialsDetails.windows = {
+        amount: RATES.windows.materialsPerWindow[quality] * estimatedWindows,
+        name: `Double glazed windows (~${estimatedWindows})`
+      };
     }
     
-    const totalLabour = Object.values(labourBreakdown).reduce((sum, val) => sum + val, 0);
-    const totalMaterials = Object.values(materialsBreakdown).reduce((sum, val) => sum + val, 0);
+    const totalLabour = Object.values(labourDetails).reduce((sum, item) => sum + item.total, 0);
+    const totalMaterials = Object.values(materialsDetails).reduce((sum, item) => sum + item.amount, 0);
     const subtotal = totalLabour + totalMaterials;
     const contingency = Math.round(subtotal * 0.15);
     const total = subtotal + contingency;
     
-    // Calculate range (±20%)
     const rangeMin = Math.round(total * 0.8);
     const rangeMax = Math.round(total * 1.2);
     
     return {
-      labourBreakdown,
-      materialsBreakdown,
-      totalLabour,
-      totalMaterials,
-      subtotal,
+      labourDetails,
+      materialsDetails,
+      totalLabour: Math.round(totalLabour),
+      totalMaterials: Math.round(totalMaterials),
+      subtotal: Math.round(subtotal),
       contingency,
-      total,
+      total: Math.round(total),
       rangeMin,
       rangeMax,
       totalSqm
@@ -213,8 +295,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         rangeMin: estimate.rangeMin,
         rangeMax: estimate.rangeMax,
         breakdown: {
-          labour: estimate.labourBreakdown,
-          materials: estimate.materialsBreakdown
+          labour: estimate.labourDetails,
+          materials: estimate.materialsDetails
         },
         updatedAt: new Date().toISOString(),
       };
@@ -245,7 +327,18 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Progress indicator */}
+      {isEditing && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✏️</span>
+            <div>
+              <p className="font-semibold text-blue-900">Editing Quote</p>
+              <p className="text-sm text-blue-700">{editingQuote.location || 'No location'} • Changes will update this quote</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           {[1, 2, 3].map((s) => (
@@ -265,7 +358,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       </div>
 
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8">
-        {/* STEP 1: Property Details */}
         {step === 1 && (
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Property Details</h2>
@@ -327,7 +419,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           </div>
         )}
 
-        {/* STEP 2: What Needs Doing */}
         {step === 2 && (
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">What Needs Doing?</h2>
@@ -386,7 +477,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           </div>
         )}
 
-        {/* STEP 3: Estimate */}
         {step === 3 && (
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">{isEditing ? 'Updated Estimate' : 'Your Estimate'}</h2>
@@ -395,7 +485,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               {formData.bedrooms} bed {formData.propertyType} • {formData.quality} quality
             </p>
 
-            {/* ESTIMATE DISPLAY - RANGE FOR FREE/SIGNED UP */}
             {!isPremium ? (
               <>
                 <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
@@ -403,36 +492,50 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   <div className="text-4xl font-bold">
                     £{estimate.rangeMin.toLocaleString()} - £{estimate.rangeMax.toLocaleString()}
                   </div>
-                  <div className="text-sm opacity-75 mt-2">Based on UK trade rates</div>
+                  <div className="text-sm opacity-75 mt-2">Based on 30+ UK trade quotes</div>
                 </div>
 
                 {/* BLURRED BREAKDOWN */}
                 <div className="relative mb-6">
-                  <div className="blur-sm pointer-events-none select-none">
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">Cost Breakdown</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between py-3 border-b">
-                          <span>Labour Costs</span>
-                          <span className="font-bold">£{estimate.totalLabour.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between py-3 border-b">
-                          <span>Materials</span>
-                          <span className="font-bold">£{estimate.totalMaterials.toLocaleString()}</span>
-                        </div>
-                        {Object.keys(estimate.labourBreakdown).map(key => (
-                          <div key={key} className="text-sm text-gray-600 ml-4">
-                            {key}: Labour £XXX + Materials £XXX
+                  <div className="blur-md pointer-events-none select-none">
+                    <div className="bg-gray-50 rounded-xl p-6 space-y-4">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">How We Calculated This:</h3>
+                      
+                      <div className="border-b pb-3">
+                        <div className="font-semibold text-blue-900 mb-2">Labour Costs</div>
+                        {Object.entries(estimate.labourDetails).map(([key, item]) => (
+                          <div key={key} className="text-sm text-gray-700 ml-4 mb-1">
+                            {item.name}: £{item.hourlyRate}/hr × {item.hours} hours = £{item.total.toLocaleString()}
                           </div>
                         ))}
                       </div>
+
+                      <div className="border-b pb-3">
+                        <div className="font-semibold text-purple-900 mb-2">Materials</div>
+                        {Object.entries(estimate.materialsDetails).map(([key, item]) => (
+                          <div key={key} className="text-sm text-gray-700 ml-4 mb-1">
+                            {item.name}: £{Math.round(item.amount).toLocaleString()}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-amber-900 mb-2">Summary</div>
+                        <div className="text-sm text-gray-700 ml-4">
+                          Total Labour: £{estimate.totalLabour.toLocaleString()}<br/>
+                          Total Materials: £{estimate.totalMaterials.toLocaleString()}<br/>
+                          Contingency (15%): £{estimate.contingency.toLocaleString()}
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* UNLOCK OVERLAY */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 text-center max-w-sm">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 text-center max-w-sm mx-4">
                       <div className="text-4xl mb-4">🔒</div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
-                      <p className="text-gray-600 mb-4">See detailed labour and material costs for each item</p>
+                      <p className="text-gray-600 mb-4">See exact hourly rates, hours, and material costs for every item</p>
                       {user ? (
                         <PaymentButton quoteData={formData} />
                       ) : (
@@ -458,40 +561,46 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   </div>
                 </div>
 
-                {/* FULL BREAKDOWN */}
-                <div className="space-y-4 mb-6">
+                {/* FULL VISIBLE BREAKDOWN */}
+                <div className="space-y-6 mb-6">
                   <div className="bg-blue-50 rounded-xl p-4">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-blue-900">Total Labour</span>
+                    <h3 className="text-lg font-bold text-blue-900 mb-3">Labour Costs</h3>
+                    {Object.entries(estimate.labourDetails).map(([key, item]) => (
+                      <div key={key} className="flex justify-between items-center py-2 border-b border-blue-200 last:border-0">
+                        <div>
+                          <div className="font-semibold text-blue-900">{item.name}</div>
+                          <div className="text-sm text-blue-700">£{item.hourlyRate}/hr × {item.hours} hours</div>
+                        </div>
+                        <div className="text-lg font-bold text-blue-900">£{item.total.toLocaleString()}</div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-blue-300">
+                      <span className="font-bold text-blue-900">Total Labour</span>
                       <span className="text-xl font-bold text-blue-900">£{estimate.totalLabour.toLocaleString()}</span>
                     </div>
                   </div>
-                  
-                  {Object.entries(estimate.labourBreakdown).map(([key, value]) => (
-                    <div key={key} className="flex justify-between items-center py-3 border-b border-slate-200 ml-4">
-                      <span className="text-slate-700 capitalize">{key} Labour</span>
-                      <span className="font-semibold text-slate-900">£{Math.round(value).toLocaleString()}</span>
-                    </div>
-                  ))}
 
-                  <div className="bg-purple-50 rounded-xl p-4 mt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-purple-900">Total Materials</span>
+                  <div className="bg-purple-50 rounded-xl p-4">
+                    <h3 className="text-lg font-bold text-purple-900 mb-3">Materials</h3>
+                    {Object.entries(estimate.materialsDetails).map(([key, item]) => (
+                      <div key={key} className="flex justify-between items-center py-2 border-b border-purple-200 last:border-0">
+                        <div className="font-medium text-purple-900">{item.name}</div>
+                        <div className="text-lg font-bold text-purple-900">£{Math.round(item.amount).toLocaleString()}</div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-purple-300">
+                      <span className="font-bold text-purple-900">Total Materials</span>
                       <span className="text-xl font-bold text-purple-900">£{estimate.totalMaterials.toLocaleString()}</span>
                     </div>
                   </div>
 
-                  {Object.entries(estimate.materialsBreakdown).map(([key, value]) => (
-                    <div key={key} className="flex justify-between items-center py-3 border-b border-slate-200 ml-4">
-                      <span className="text-slate-700 capitalize">{key} Materials</span>
-                      <span className="font-semibold text-slate-900">£{Math.round(value).toLocaleString()}</span>
-                    </div>
-                  ))}
-
-                  <div className="bg-amber-50 rounded-xl p-4 mt-4">
+                  <div className="bg-amber-50 rounded-xl p-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-amber-900">Contingency (15%)</span>
-                      <span className="text-xl font-bold text-amber-900">£{estimate.contingency.toLocaleString()}</span>
+                      <div>
+                        <div className="font-bold text-amber-900">Contingency (15%)</div>
+                        <div className="text-sm text-amber-700">For unexpected costs</div>
+                      </div>
+                      <div className="text-xl font-bold text-amber-900">£{estimate.contingency.toLocaleString()}</div>
                     </div>
                   </div>
                 </div>
@@ -528,7 +637,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           </div>
         )}
 
-        {/* Navigation */}
         {step < 3 && (
           <div className="flex gap-3 mt-8 pt-6 border-t border-slate-200">
             {step > 1 && (
