@@ -170,7 +170,7 @@ function App() {
 
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div className="bg-white border-b border-gray-200 px-6 pb-4 flex justify-between items-center" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}>
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Saved Quotes</h1>
               <p className="text-sm text-gray-600">
