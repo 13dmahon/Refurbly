@@ -28,7 +28,6 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
         throw new Error('Please sign in first');
       }
 
-      console.log('Getting token...');
       await currentUser.getIdToken(true);
       
       console.log('Creating checkout session...');
