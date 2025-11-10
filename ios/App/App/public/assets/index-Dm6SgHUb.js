@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT9qMimY.js","assets/index-C5kOux9O.js","assets/index-BrbxSbLj.css","assets/index.esm-CRjskAss.js","assets/index.esm2017-Bi2ccvWJ.js"])))=>i.map(i=>d[i]);
+import{r,_ as i}from"./index-C5kOux9O.js";const o=r("FirebaseFirestore",{web:()=>i(()=>import("./web-CT9qMimY.js"),__vite__mapDeps([0,1,2,3,4])).then(e=>new e.FirebaseFirestoreWeb)});export{o as FirebaseFirestore};
