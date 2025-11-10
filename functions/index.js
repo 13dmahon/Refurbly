@@ -4,7 +4,6 @@ const admin = require('firebase-admin');
 const stripe = require('stripe')('sk_test_51SNwtGQuoxdBSwDrP4xopttYdUZzeWrLMfYaX0TFQUymL74WTJIcNRZApDYUS3LYjNe00zMLDN1JDZR4Hl7u3Ct900m2AWH0qL');
 
 admin.initializeApp();
-
 setGlobalOptions({ region: 'us-central1' });
 
 exports.createCheckoutSession = onCall(async (request) => {
@@ -40,14 +39,14 @@ exports.createCheckoutSession = onCall(async (request) => {
       ],
       metadata: {
         userId: userId,
-        quoteData: JSON.stringify(quoteData),
+        quoteId: quoteData.id || 'unknown',
       },
     });
 
     console.log('Session created:', session.id);
     return { 
       sessionId: session.id,
-      url: session.url  // Return the checkout URL
+      url: session.url
     };
     
   } catch (error) {

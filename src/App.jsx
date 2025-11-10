@@ -170,7 +170,7 @@ function App() {
 
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 pb-4 flex justify-between items-center" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}>
+          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Saved Quotes</h1>
               <p className="text-sm text-gray-600">
@@ -233,6 +233,20 @@ function App() {
                   <p className="text-gray-600 mb-6">
                     Create your first quote to see it here
                   </p>
+                  <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-3xl">✨</span>
+                      <h3 className="text-xl font-bold text-blue-900">Upgrade to Premium - £9.99</h3>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Detailed room breakdowns</span></div>
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Labour hours & rates</span></div>
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Material costs & evidence</span></div>
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Unlimited saved quotes</span></div>
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">PDF export & sharing</span></div>
+                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Lifetime access</span></div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -267,7 +281,7 @@ function App() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Refurb level:</span>
-                          <span className="font-semibold">Custom refurb</span>
+                          <span className="font-semibold capitalize">{quote.refurbLevel}</span>
                         </div>
                       </div>
 
@@ -301,13 +315,7 @@ function App() {
                             </button>
                           </>
                         ) : (
-                          <button
-                            disabled
-                            className="flex-1 bg-gray-100 text-gray-400 px-4 py-2 rounded-lg text-sm font-semibold cursor-not-allowed"
-                            title="Upgrade to Premium to view details"
-                          >
-                            🔒 Upgrade to View
-                          </button>
+                          <PaymentButton quoteData={quote} inCard={true} />
                         )}
                       </div>
                     </div>

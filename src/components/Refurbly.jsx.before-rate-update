@@ -1,0 +1,876 @@
+import { useState, useMemo, useEffect } from "react";
+import { FirestoreWrapper } from '../services/firebase-wrapper';
+import PaymentButton from './PaymentButton';
+import { useAuth } from '../hooks/useAuth.jsx';
+
+// Auto-calculate sqm from property details
+const AUTO_SQM = {
+  flat: { 1: 45, 2: 65, 3: 85, 4: 100, 5: 120 },
+  house: { 2: 75, 3: 95, 4: 120, 5: 150 },
+  maisonette: { 2: 70, 3: 90, 4: 110, 5: 135 }
+};
+
+// HOURLY RATES + MATERIALS
+const RATES = {
+  decoration: {
+    hourlyRate: { budget: 20, standard: 25, premium: 35 },
+    hoursPerSqm: 0.5,
+    materialsPerSqm: { budget: 5, standard: 8, premium: 15 }
+  },
+  flooring: {
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerSqm: 0.3,
+    materialsPerSqm: { budget: 20, standard: 40, premium: 70 }
+  },
+  plastering: {
+    hourlyRate: { budget: 30, standard: 40, premium: 50 },
+    hoursPerSqm: 0.4,
+    materialsPerSqm: { budget: 8, standard: 12, premium: 18 }
+  },
+  kitchen: {
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hours: { budget: 40, standard: 50, premium: 80 },
+    materials: { budget: 3500, standard: 6000, premium: 12000 }
+  },
+  bathroom: {
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerBathroom: { budget: 30, standard: 40, premium: 60 },
+    materialsPerBathroom: { budget: 1800, standard: 2700, premium: 5000 }
+  },
+  rewire: {
+    hourlyRate: { budget: 35, standard: 40, premium: 50 },
+    hours: { budget: 50, standard: 60, premium: 80 },
+    materials: { budget: 1000, standard: 1500, premium: 2000 }
+  },
+  heating: {
+    hourlyRate: { budget: 30, standard: 35, premium: 45 },
+    hours: { budget: 40, standard: 50, premium: 60 },
+    materials: { budget: 1500, standard: 2000, premium: 3500 }
+  },
+  windows: {
+    hourlyRate: { budget: 25, standard: 30, premium: 40 },
+    hoursPerWindow: { budget: 2, standard: 3, premium: 4 },
+    materialsPerWindow: { budget: 400, standard: 600, premium: 1000 }
+  }
+};
+
+// Evidence sources
+const SOURCES = {
+  labour: 'Checkatrade & MyBuilder average rates (Nov 2024)',
+  materials: {
+    kitchen: 'Howdens & Wren Kitchens price guides',
+    bathroom: 'Victorian Plumbing & B&Q price comparison',
+    flooring: 'Carpetright & Flooring Superstore',
+    general: 'Screwfix & Toolstation trade prices'
+  }
+};
+
+export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQuotes, onEditComplete }) {
+  const [step, setStep] = useState(1);
+  const { user, isPremium } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustments, setAdjustments] = useState({});
+  const [customItems, setCustomItems] = useState([]);
+  const [isManuallyEdited, setIsManuallyEdited] = useState(false);
+  const [showAddItemForm, setShowAddItemForm] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemCost, setNewItemCost] = useState('');
+  const [newItemDesc, setNewItemDesc] = useState('');
+  const isEditing = !!editingQuote;
+  
+  const [formData, setFormData] = useState({
+    bedrooms: '2',
+    bathrooms: '1',
+    propertyType: 'house',
+    location: '',
+    quality: 'standard',
+    needsDecoration: true,
+    needsFlooring: true,
+    needsPlastering: false,
+    needsKitchen: true,
+    needsBathroom: true,
+    needsRewire: false,
+    needsHeating: false,
+    needsWindows: false,
+  });
+
+  useEffect(() => {
+    if (editingQuote) {
+      setFormData({
+        bedrooms: String(editingQuote.bedrooms || '2'),
+        bathrooms: String(editingQuote.bathrooms || '1'),
+        propertyType: editingQuote.propertyType || 'house',
+        location: editingQuote.location || '',
+        quality: editingQuote.quality || 'standard',
+        needsDecoration: editingQuote.needsDecoration !== false,
+        needsFlooring: editingQuote.needsFlooring !== false,
+        needsPlastering: editingQuote.needsPlastering || false,
+        needsKitchen: editingQuote.needsKitchen !== false,
+        needsBathroom: editingQuote.needsBathroom !== false,
+        needsRewire: editingQuote.needsRewire || false,
+        needsHeating: editingQuote.needsHeating || false,
+        needsWindows: editingQuote.needsWindows || false,
+      });
+      if (editingQuote.adjustments) setAdjustments(editingQuote.adjustments);
+      if (editingQuote.customItems) setCustomItems(editingQuote.customItems);
+      if (editingQuote.isManuallyEdited) setIsManuallyEdited(true);
+    }
+  }, [editingQuote]);
+
+  const updateForm = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const estimate = useMemo(() => {
+    const bedrooms = parseInt(formData.bedrooms) || 2;
+    const bathrooms = parseInt(formData.bathrooms) || 1;
+    const propertyType = formData.propertyType;
+    const quality = formData.quality;
+    
+    const totalSqm = AUTO_SQM[propertyType]?.[bedrooms] || 75;
+    const estimatedWindows = bedrooms * 2 + 2;
+    
+    let roomBreakdown = [];
+    
+    // Build room-by-room breakdown
+    if (formData.needsKitchen) {
+      const labour = RATES.kitchen.hours[quality] * RATES.kitchen.hourlyRate[quality];
+      const materials = RATES.kitchen.materials[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'kitchen',
+        name: 'Kitchen',
+        labour,
+        labourDetails: `${RATES.kitchen.hours[quality]} hrs @ £${RATES.kitchen.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: 'Units & appliances',
+        total: adjustments.kitchen || total,
+        source: SOURCES.materials.kitchen
+      });
+    }
+    
+    if (formData.needsBathroom) {
+      const labour = RATES.bathroom.hoursPerBathroom[quality] * bathrooms * RATES.bathroom.hourlyRate[quality];
+      const materials = RATES.bathroom.materialsPerBathroom[quality] * bathrooms;
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'bathrooms',
+        name: `Bathroom${bathrooms > 1 ? 's' : ''} (${bathrooms})`,
+        labour,
+        labourDetails: `${RATES.bathroom.hoursPerBathroom[quality] * bathrooms} hrs @ £${RATES.bathroom.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: 'Suite & tiles',
+        total: adjustments.bathrooms || total,
+        source: SOURCES.materials.bathroom
+      });
+    }
+    
+    if (formData.needsDecoration) {
+      const hours = Math.round(totalSqm * RATES.decoration.hoursPerSqm);
+      const labour = hours * RATES.decoration.hourlyRate[quality];
+      const materials = totalSqm * RATES.decoration.materialsPerSqm[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'decoration',
+        name: 'Decoration',
+        labour,
+        labourDetails: `${hours} hrs @ £${RATES.decoration.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: `Paint & materials (${totalSqm}sqm)`,
+        total: adjustments.decoration || total,
+        source: SOURCES.materials.general
+      });
+    }
+    
+    if (formData.needsFlooring) {
+      const hours = Math.round(totalSqm * RATES.flooring.hoursPerSqm);
+      const labour = hours * RATES.flooring.hourlyRate[quality];
+      const materials = totalSqm * RATES.flooring.materialsPerSqm[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'flooring',
+        name: 'Flooring',
+        labour,
+        labourDetails: `${hours} hrs @ £${RATES.flooring.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: `Carpet/laminate (${totalSqm}sqm)`,
+        total: adjustments.flooring || total,
+        source: SOURCES.materials.flooring
+      });
+    }
+    
+    if (formData.needsPlastering) {
+      const hours = Math.round(totalSqm * RATES.plastering.hoursPerSqm);
+      const labour = hours * RATES.plastering.hourlyRate[quality];
+      const materials = totalSqm * RATES.plastering.materialsPerSqm[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'plastering',
+        name: 'Plastering',
+        labour,
+        labourDetails: `${hours} hrs @ £${RATES.plastering.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: `Materials (${totalSqm}sqm)`,
+        total: adjustments.plastering || total,
+        source: SOURCES.materials.general
+      });
+    }
+    
+    if (formData.needsRewire) {
+      const labour = RATES.rewire.hours[quality] * RATES.rewire.hourlyRate[quality];
+      const materials = RATES.rewire.materials[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'rewire',
+        name: 'Electrical Rewire',
+        labour,
+        labourDetails: `${RATES.rewire.hours[quality]} hrs @ £${RATES.rewire.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: 'Cable, sockets, consumer unit',
+        total: adjustments.rewire || total,
+        source: SOURCES.materials.general
+      });
+    }
+    
+    if (formData.needsHeating) {
+      const labour = RATES.heating.hours[quality] * RATES.heating.hourlyRate[quality];
+      const materials = RATES.heating.materials[quality];
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'heating',
+        name: 'Heating System',
+        labour,
+        labourDetails: `${RATES.heating.hours[quality]} hrs @ £${RATES.heating.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: 'Boiler & radiators',
+        total: adjustments.heating || total,
+        source: SOURCES.materials.general
+      });
+    }
+    
+    if (formData.needsWindows) {
+      const hours = RATES.windows.hoursPerWindow[quality] * estimatedWindows;
+      const labour = hours * RATES.windows.hourlyRate[quality];
+      const materials = RATES.windows.materialsPerWindow[quality] * estimatedWindows;
+      const total = labour + materials;
+      roomBreakdown.push({
+        id: 'windows',
+        name: `Windows (~${estimatedWindows})`,
+        labour,
+        labourDetails: `${hours} hrs @ £${RATES.windows.hourlyRate[quality]}/hr`,
+        materials,
+        materialsDetails: 'Double glazed units',
+        total: adjustments.windows || total,
+        source: SOURCES.materials.general
+      });
+    }
+    
+    // Add custom items
+    customItems.forEach(item => {
+      roomBreakdown.push({
+        id: `custom-${item.id}`,
+        name: item.name,
+        labour: 0,
+        labourDetails: 'Custom item',
+        materials: 0,
+        materialsDetails: item.description || '',
+        total: item.cost,
+        source: 'User added',
+        isCustom: true
+      });
+    });
+    
+    const subtotal = roomBreakdown.reduce((sum, room) => sum + room.total, 0);
+    const contingency = Math.round(subtotal * 0.15);
+    const total = subtotal + contingency;
+    
+    // Round to nearest £5k for free users
+    const roundedTotal = Math.round(total / 5000) * 5000;
+    const rangeMin = roundedTotal - 5000;
+    const rangeMax = roundedTotal + 5000;
+    
+    return {
+      roomBreakdown,
+      subtotal: Math.round(subtotal),
+      contingency,
+      total: Math.round(total),
+      rangeMin,
+      rangeMax,
+      totalSqm
+    };
+  }, [formData, adjustments, customItems]);
+
+  const handleSaveQuote = async () => {
+    if (!user) {
+      alert('Please sign in to save quotes');
+      return;
+    }
+
+    if (!isEditing && quotesCount >= maxQuotes) {
+      if (isPremium) {
+        alert('You\'ve reached the maximum of 10 saved quotes. Please delete some quotes to add new ones.');
+      } else {
+        alert('You\'ve reached your free limit of 5 quotes. Upgrade to Premium to save more!');
+      }
+      return;
+    }
+
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      const quoteData = {
+        userId: user.uid,
+        location: formData.location || 'No location specified',
+        propertyType: formData.propertyType,
+        bedrooms: parseInt(formData.bedrooms),
+        bathrooms: parseInt(formData.bathrooms),
+        totalSqm: estimate.totalSqm,
+        quality: formData.quality,
+        needsDecoration: formData.needsDecoration,
+        needsFlooring: formData.needsFlooring,
+        needsPlastering: formData.needsPlastering,
+        needsKitchen: formData.needsKitchen,
+        needsBathroom: formData.needsBathroom,
+        needsRewire: formData.needsRewire,
+        needsHeating: formData.needsHeating,
+        needsWindows: formData.needsWindows,
+        estimate: estimate.total,
+        rangeMin: estimate.rangeMin,
+        rangeMax: estimate.rangeMax,
+        breakdown: estimate.roomBreakdown,
+        adjustments: Object.keys(adjustments).length > 0 ? adjustments : null,
+        customItems: customItems.length > 0 ? customItems : null,
+        isManuallyEdited,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (isEditing) {
+        await FirestoreWrapper.updateDoc('quotes', editingQuote.id, quoteData);
+        setSaveSuccess(true);
+        setTimeout(() => {
+          if (onEditComplete) onEditComplete();
+        }, 1500);
+      } else {
+        quoteData.createdAt = new Date().toISOString();
+        await FirestoreWrapper.addDoc('quotes', quoteData);
+        setSaveSuccess(true);
+        if (onQuoteSaved) onQuoteSaved();
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving quote:', error);
+      alert('Failed to save quote. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAdjustCost = (roomId, newValue) => {
+    setAdjustments(prev => ({ ...prev, [roomId]: parseFloat(newValue) || 0 }));
+    setIsManuallyEdited(true);
+  };
+
+  const handleAddCustomItem = () => {
+    if (!newItemName || !newItemCost) {
+      alert('Please enter item name and cost');
+      return;
+    }
+    
+    setCustomItems(prev => [...prev, {
+      id: Date.now(),
+      name: newItemName,
+      cost: parseFloat(newItemCost),
+      description: newItemDesc
+    }]);
+    setIsManuallyEdited(true);
+    
+    // Reset form
+    setNewItemName('');
+    setNewItemCost('');
+    setNewItemDesc('');
+    setShowAddItemForm(false);
+  };
+
+  const handleRemoveCustomItem = (id) => {
+    setCustomItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleNext = () => setStep((s) => Math.min(s + 1, 3));
+  const handleBack = () => setStep((s) => Math.max(s - 1, 1));
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {isEditing && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✏️</span>
+            <div>
+              <p className="font-semibold text-blue-900">Editing Quote</p>
+              <p className="text-sm text-blue-700">{editingQuote.location || 'No location'} • Changes will update this quote</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-8">
+        <div className="flex items-center mb-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center flex-1">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s <= step ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
+                {s}
+              </div>
+              {s < 3 && <div className={`h-1 flex-1 mx-2 rounded transition-all ${s < step ? 'bg-blue-600' : 'bg-slate-200'}`} />}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center">
+          {['Property', 'What's Needed', 'Estimate'].map((label, i) => (
+            <div key={i} className="flex-1 flex items-center">
+              <div className="w-10 text-center text-xs sm:text-sm text-slate-600">{label}</div>
+              {i < 2 && <div className="flex-1" />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8">
+        {step === 1 && (
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Property Details</h2>
+            <p className="text-slate-600 mb-6">Tell us about the property</p>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Property Type</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {['flat', 'house', 'maisonette'].map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => updateForm('propertyType', type)}
+                      className={`p-4 rounded-xl border-2 font-medium transition-all capitalize ${formData.propertyType === type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Bedrooms</label>
+                  <select
+                    value={formData.bedrooms}
+                    onChange={(e) => updateForm('bedrooms', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  >
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Bathrooms</label>
+                  <select
+                    value={formData.bathrooms}
+                    onChange={(e) => updateForm('bathrooms', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  >
+                    {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Property Location <span className="font-normal text-slate-500">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => updateForm('location', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  placeholder="e.g., 123 Oak Street, Manchester"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">What Needs Doing?</h2>
+            <p className="text-slate-600 mb-6">Select all that apply</p>
+
+            <div className="space-y-3">
+              {[
+                { field: 'needsDecoration', label: 'Full Decoration', desc: 'Painting, decorating throughout' },
+                { field: 'needsFlooring', label: 'New Flooring', desc: 'Carpets, laminate, or tiles' },
+                { field: 'needsPlastering', label: 'Plastering', desc: 'Walls and ceilings' },
+                { field: 'needsKitchen', label: 'New Kitchen', desc: 'Full kitchen replacement' },
+                { field: 'needsBathroom', label: 'New Bathroom(s)', desc: 'Complete bathroom refurb' },
+                { field: 'needsRewire', label: 'Full Rewire', desc: 'Complete electrical rewiring' },
+                { field: 'needsHeating', label: 'New Heating System', desc: 'Boiler and radiators' },
+                { field: 'needsWindows', label: 'Replace Windows', desc: 'New double glazing' },
+              ].map((item) => (
+                <label
+                  key={item.field}
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData[item.field] ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData[item.field]}
+                    onChange={(e) => updateForm(item.field, e.target.checked)}
+                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-blue-600"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-slate-900">{item.label}</div>
+                    <div className="text-sm text-slate-600">{item.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <label className="block text-sm font-semibold text-slate-700 mb-3">Quality Level</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { value: 'budget', label: 'Budget', icon: '💰', desc: 'Basic, functional finish' },
+                  { value: 'standard', label: 'Standard', icon: '🏡', desc: 'Good quality, mid-range' },
+                  { value: 'premium', label: 'Premium', icon: '⭐', desc: 'High-end finishes' }
+                ].map((q) => (
+                  <button
+                    key={q.value}
+                    type="button"
+                    onClick={() => updateForm('quality', q.value)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${formData.quality === q.value ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+                  >
+                    <div className="text-2xl mb-2">{q.icon}</div>
+                    <div className="font-semibold text-slate-900">{q.label}</div>
+                    <div className="text-sm text-slate-600">{q.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">{isEditing ? 'Updated Estimate' : 'Your Estimate'}</h2>
+            <p className="text-slate-600 mb-6">
+              {formData.location && `${formData.location} • `}
+              {formData.bedrooms} bed {formData.propertyType} • {formData.quality} quality
+            </p>
+
+            {isManuallyEdited && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm">
+                <span className="text-amber-800">⚠️ This quote has been manually edited</span>
+              </div>
+            )}
+
+            {!isPremium ? (
+              <>
+                {/* FREE VERSION - ROUNDED TO £5K */}
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                  <div className="text-sm opacity-90 mb-1">Estimated Cost Range</div>
+                  <div className="text-4xl font-bold">
+                    £{estimate.rangeMin.toLocaleString()} - £{estimate.rangeMax.toLocaleString()}
+                  </div>
+                  <div className="text-sm opacity-75 mt-2">Based on 30+ UK trade quotes</div>
+                </div>
+
+                {/* BLURRED ROOM BREAKDOWN */}
+                <div className="relative mb-6">
+                  <div className="blur-md pointer-events-none select-none">
+                    <div className="bg-gray-50 rounded-xl p-6 space-y-3">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Room-by-Room Breakdown:</h3>
+                      
+                      {estimate.roomBreakdown.map((room) => (
+                        <div key={room.id} className="bg-white rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="font-bold text-gray-900">{room.name}</div>
+                            <div className="text-xl font-bold text-gray-900">£{Math.round(room.total).toLocaleString()}</div>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>Labour: {room.labourDetails}</div>
+                            <div>Materials: {room.materialsDetails}</div>
+                            <div className="text-xs text-gray-500 mt-2">Source: {room.source}</div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="bg-amber-100 rounded-lg p-4 mt-4">
+                        <div className="flex justify-between">
+                          <span className="font-bold">Contingency (15%)</span>
+                          <span className="font-bold">£{estimate.contingency.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* UNLOCK OVERLAY */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 text-center max-w-sm mx-4">
+                      <div className="text-4xl mb-4">🔒</div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
+                      <p className="text-gray-600 mb-4">See exact costs per room with labour rates, material costs, and source links</p>
+                      {user ? (
+                        <PaymentButton quoteData={formData} />
+                      ) : (
+                        <div className="text-amber-700 text-sm">Sign in to unlock premium features</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* PREMIUM VERSION - EXACT WITH EDITING */}
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                  <div className="text-sm opacity-90 mb-1">Total Estimated Cost</div>
+                  <div className="text-4xl font-bold">£{estimate.total.toLocaleString()}</div>
+                  <div className="text-sm opacity-75 mt-2">Including 15% contingency</div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-800">
+                      <span className="text-xl">✅</span>
+                      <span className="font-semibold">Premium - Full breakdown unlocked</span>
+                    </div>
+                    <button
+                      onClick={() => setShowAdjustModal(true)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-semibold transition-all"
+                    >
+                      ✏️ Adjust Costs
+                    </button>
+                  </div>
+                </div>
+
+                {/* ROOM-BY-ROOM BREAKDOWN */}
+                <div className="space-y-3 mb-6">
+                  {estimate.roomBreakdown.map((room) => (
+                    <div key={room.id} className="bg-blue-50 rounded-xl p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="font-bold text-blue-900 text-lg">{room.name}</div>
+                        <div className="text-2xl font-bold text-blue-900">£{Math.round(room.total).toLocaleString()}</div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-blue-800">
+                          <span>Labour: {room.labourDetails}</span>
+                          <span className="font-semibold">£{Math.round(room.labour).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-blue-800">
+                          <span>Materials: {room.materialsDetails}</span>
+                          <span className="font-semibold">£{Math.round(room.materials).toLocaleString()}</span>
+                        </div>
+                        <div className="text-xs text-blue-600 mt-2 pt-2 border-t border-blue-200">
+                          💡 Source: {room.source}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="bg-amber-50 rounded-xl p-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-bold text-amber-900">Contingency (15%)</div>
+                        <div className="text-sm text-amber-700">For unexpected costs</div>
+                      </div>
+                      <div className="text-xl font-bold text-amber-900">£{estimate.contingency.toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 mb-6">
+                  <div className="font-semibold text-slate-900 mb-2">💡 About these rates:</div>
+                  <div>Labour rates: {SOURCES.labour}</div>
+                  <div className="mt-1">Material costs: Industry average from major UK suppliers</div>
+                </div>
+              </>
+            )}
+
+            {saveSuccess && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-green-800 font-semibold">✓ Quote {isEditing ? 'updated' : 'saved'} successfully!</p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {user && (
+                <button
+                  onClick={handleSaveQuote}
+                  disabled={saving}
+                  className="w-full px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition-all disabled:opacity-50"
+                >
+                  {saving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? '💾 Update Quote' : '💾 Save Quote')}
+                </button>
+              )}
+              
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="w-full px-6 py-3 rounded-xl bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-semibold transition-all"
+                >
+                  🔄 Start Again
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step < 3 && (
+          <div className="flex gap-3 mt-8 pt-6 border-t border-slate-200">
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-all"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleNext}
+              className="flex-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-lg"
+            >
+              {step === 2 ? 'Get Estimate' : 'Next'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ADJUST COSTS MODAL WITH INLINE CUSTOM ITEM FORM */}
+      {showAdjustModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+              <h2 className="text-2xl font-bold text-slate-900">Adjust Costs</h2>
+              <button
+                onClick={() => setShowAdjustModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {estimate.roomBreakdown.map((room) => !room.isCustom && (
+                <div key={room.id} className="bg-slate-50 rounded-xl p-4">
+                  <label className="block font-semibold text-slate-900 mb-2">{room.name}</label>
+                  <div className="flex gap-3 items-center">
+                    <input
+                      type="number"
+                      value={adjustments[room.id] || room.total}
+                      onChange={(e) => handleAdjustCost(room.id, e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-lg border-2 border-slate-200 focus:border-blue-600 outline-none"
+                      placeholder="Enter cost"
+                    />
+                    <button
+                      onClick={() => {
+                        const newAdj = { ...adjustments };
+                        delete newAdj[room.id];
+                        setAdjustments(newAdj);
+                      }}
+                      className="px-3 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <div className="text-sm text-slate-600 mt-1">Original: £{Math.round(room.total).toLocaleString()}</div>
+                </div>
+              ))}
+
+              {/* CUSTOM ITEMS SECTION */}
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Custom Items</h3>
+                
+                {customItems.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center bg-slate-50 rounded-lg p-3 mb-2">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      {item.description && <div className="text-sm text-slate-600">{item.description}</div>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold">£{item.cost.toLocaleString()}</span>
+                      <button
+                        onClick={() => handleRemoveCustomItem(item.id)}
+                        className="text-red-600 hover:text-red-700 text-xl"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* INLINE ADD FORM */}
+                {!showAddItemForm ? (
+                  <button
+                    onClick={() => setShowAddItemForm(true)}
+                    className="w-full px-4 py-3 border-2 border-dashed border-slate-300 hover:border-blue-600 hover:bg-blue-50 rounded-xl text-slate-600 hover:text-blue-600 font-semibold transition-all"
+                  >
+                    + Add Custom Item
+                  </button>
+                ) : (
+                  <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+                    <input
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      placeholder="Item name (e.g., Loft Insulation)"
+                    />
+                    <input
+                      type="number"
+                      value={newItemCost}
+                      onChange={(e) => setNewItemCost(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      placeholder="Cost (£)"
+                    />
+                    <input
+                      type="text"
+                      value={newItemDesc}
+                      onChange={(e) => setNewItemDesc(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      placeholder="Description (optional)"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowAddItemForm(false);
+                          setNewItemName('');
+                          setNewItemCost('');
+                          setNewItemDesc('');
+                        }}
+                        className="flex-1 px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg font-semibold"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddCustomItem}
+                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+                      >
+                        Add Item
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowAdjustModal(false)}
+                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all mt-4"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

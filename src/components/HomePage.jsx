@@ -28,6 +28,17 @@ export default function HomePage({ onStartCalculator }) {
             </p>
           </div>
 
+          {/* Free Tier Info */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 max-w-md mx-auto">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-2xl">🎁</span>
+              <span className="font-bold text-green-900 text-lg">5 FREE Quotes</span>
+            </div>
+            <p className="text-sm text-green-800">
+              Sign up free to save up to 5 quotes. Upgrade to Premium (£9.99 one-time) for unlimited quotes + detailed room-by-room breakdowns.
+            </p>
+          </div>
+
           {/* Buttons */}
           <div className="space-y-4 max-w-md mx-auto">
             {/* Login/Sign Up Button */}
@@ -38,7 +49,7 @@ export default function HomePage({ onStartCalculator }) {
               <span className="text-2xl">👤</span>
               <div className="text-left">
                 <div className="font-bold">Login / Sign Up</div>
-                <div className="text-sm text-gray-500 font-normal">Access your saved quotes</div>
+                <div className="text-sm text-gray-500 font-normal">Get 5 free saved quotes</div>
               </div>
             </button>
 

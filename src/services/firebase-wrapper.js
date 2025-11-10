@@ -79,9 +79,14 @@ export const FirebaseAuthWrapper = {
       }
     } else {
       console.log('🌐 Setting up WEB auth listener')
-      const { onAuthStateChanged } = require('firebase/auth')
-      const { auth } = require('../config/firebase')
-      return onAuthStateChanged(auth, callback)
+      // FIX: Use async import instead of require
+      let unsubscribe = () => {}
+      import('firebase/auth').then(({ onAuthStateChanged }) => {
+        import('../config/firebase').then(({ auth }) => {
+          unsubscribe = onAuthStateChanged(auth, callback)
+        })
+      })
+      return () => unsubscribe()
     }
   },
 
