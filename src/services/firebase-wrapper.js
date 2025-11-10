@@ -9,9 +9,13 @@ const platform = Capacitor.getPlatform()
 
 console.log(`🔥 Firebase Platform: ${platform} (native: ${isNative})`)
 
+// Helper to serialize data for native Firestore
+const serializeForNative = (data) => {
+  return JSON.parse(JSON.stringify(data))
+}
+
 // Auth wrapper
 export const FirebaseAuthWrapper = {
-  // Sign in
   signIn: async (email, password) => {
     if (isNative) {
       console.log('📱 Native sign in...')
@@ -26,7 +30,6 @@ export const FirebaseAuthWrapper = {
     }
   },
 
-  // Sign up
   signUp: async (email, password) => {
     if (isNative) {
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
@@ -39,7 +42,6 @@ export const FirebaseAuthWrapper = {
     }
   },
 
-  // Sign out
   signOut: async () => {
     if (isNative) {
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
@@ -51,20 +53,16 @@ export const FirebaseAuthWrapper = {
     }
   },
 
-  // FIXED: Listen to auth state changes
   onAuthStateChanged: (callback) => {
     if (isNative) {
       console.log('📱 Setting up NATIVE auth listener')
       
-      // Import and setup listener
       import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
-        // Add native listener
         FirebaseAuthentication.addListener('authStateChange', (change) => {
           console.log('📱 Native auth state changed:', change.user)
           callback(change.user || null)
         })
         
-        // Get current user immediately
         FirebaseAuthentication.getCurrentUser().then(result => {
           console.log('📱 Current native user:', result.user)
           callback(result.user || null)
@@ -74,7 +72,6 @@ export const FirebaseAuthWrapper = {
         })
       })
       
-      // Return unsubscribe function
       return () => {
         import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
           FirebaseAuthentication.removeAllListeners()
@@ -88,7 +85,6 @@ export const FirebaseAuthWrapper = {
     }
   },
 
-  // Get current user
   getCurrentUser: async () => {
     if (isNative) {
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
@@ -103,9 +99,9 @@ export const FirebaseAuthWrapper = {
 
 // Firestore wrapper
 export const FirestoreWrapper = {
-  // Get document
   getDoc: async (collection, docId) => {
     if (isNative) {
+      console.log(`📱 Native getDoc: ${collection}/${docId}`)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
       const result = await FirebaseFirestore.getDocument({
         reference: `${collection}/${docId}`
@@ -123,14 +119,16 @@ export const FirestoreWrapper = {
     }
   },
 
-  // Set document
   setDoc: async (collection, docId, data) => {
     if (isNative) {
+      console.log(`📱 Native setDoc: ${collection}/${docId}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      const serializedData = serializeForNative(data)
       await FirebaseFirestore.setDocument({
         reference: `${collection}/${docId}`,
-        data: data
+        data: serializedData
       })
+      console.log('✅ Native setDoc complete')
     } else {
       const { doc, setDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
@@ -139,14 +137,17 @@ export const FirestoreWrapper = {
     }
   },
 
-  // Add document
   addDoc: async (collection, data) => {
     if (isNative) {
+      console.log(`📱 Native addDoc to: ${collection}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      const serializedData = serializeForNative(data)
+      console.log('📱 Serialized data:', serializedData)
       const result = await FirebaseFirestore.addDocument({
         reference: collection,
-        data: data
+        data: serializedData
       })
+      console.log('✅ Native addDoc complete:', result)
       return { id: result.reference.split('/').pop() }
     } else {
       const { collection: fbCollection, addDoc } = await import('firebase/firestore')
@@ -156,14 +157,16 @@ export const FirestoreWrapper = {
     }
   },
 
-  // Update document
   updateDoc: async (collection, docId, data) => {
     if (isNative) {
+      console.log(`📱 Native updateDoc: ${collection}/${docId}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      const serializedData = serializeForNative(data)
       await FirebaseFirestore.updateDocument({
         reference: `${collection}/${docId}`,
-        data: data
+        data: serializedData
       })
+      console.log('✅ Native updateDoc complete')
     } else {
       const { doc, updateDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
