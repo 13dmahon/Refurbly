@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions, auth } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 export default function PaymentButton({ quoteData, compact = false, inCard = false }) {
   const [loading, setLoading] = useState(false);
@@ -9,6 +11,9 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
   const { user } = useAuth();
 
   const handlePayment = async () => {
+    console.log('=== PAYMENT STARTED ===');
+    console.log('Platform:', Capacitor.getPlatform());
+    
     if (!user) {
       setError('Please sign in first');
       return;
@@ -23,21 +28,30 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
         throw new Error('Please sign in first');
       }
 
-      // Force token refresh
-      console.log('Refreshing token...');
+      console.log('Getting token...');
       await currentUser.getIdToken(true);
       
       console.log('Creating checkout session...');
       const createCheckout = httpsCallable(functions, 'createCheckoutSession');
       const result = await createCheckout({ quoteData });
       
-      console.log('Redirecting to Stripe...');
       const { url } = result.data;
-      window.location.href = url;
+      console.log('Got checkout URL:', url);
+      
+      // On iOS/Android, open in external browser (Safari)
+      if (Capacitor.isNativePlatform()) {
+        console.log('Opening in Safari...');
+        await Browser.open({ url });
+        setLoading(false); // Stop loading since we opened external browser
+      } else {
+        // On web, redirect normally
+        console.log('Redirecting in web...');
+        window.location.href = url;
+      }
       
     } catch (err) {
       console.error('Payment error:', err);
-      setError('Payment setup failed. Please try again.');
+      setError('Payment failed. Please try again.');
       setLoading(false);
     }
   };
@@ -70,7 +84,6 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
     );
   }
 
-  // Default compact mode for estimate page
   return (
     <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
       <div className="flex items-center justify-between gap-3">
