@@ -14,10 +14,12 @@ export const FirebaseAuthWrapper = {
   // Sign in
   signIn: async (email, password) => {
     if (isNative) {
+      console.log('📱 Native sign in...')
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
       const result = await FirebaseAuthentication.signInWithEmailAndPassword({ email, password })
       return { user: result.user }
     } else {
+      console.log('🌐 Web sign in...')
       const { signInWithEmailAndPassword } = await import('firebase/auth')
       const { auth } = await import('../config/firebase')
       return await signInWithEmailAndPassword(auth, email, password)
@@ -49,28 +51,37 @@ export const FirebaseAuthWrapper = {
     }
   },
 
-  // Listen to auth state changes
+  // FIXED: Listen to auth state changes
   onAuthStateChanged: (callback) => {
     if (isNative) {
-      const { FirebaseAuthentication } = import('@capacitor-firebase/authentication').then(module => {
-        // Add listener for native
+      console.log('📱 Setting up NATIVE auth listener')
+      
+      // Import and setup listener
+      import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
+        // Add native listener
         FirebaseAuthentication.addListener('authStateChange', (change) => {
+          console.log('📱 Native auth state changed:', change.user)
           callback(change.user || null)
         })
         
         // Get current user immediately
         FirebaseAuthentication.getCurrentUser().then(result => {
+          console.log('📱 Current native user:', result.user)
           callback(result.user || null)
+        }).catch(err => {
+          console.log('📱 No current user:', err)
+          callback(null)
         })
-        
-        // Return unsubscribe function
-        return () => {
-          FirebaseAuthentication.removeAllListeners()
-        }
       })
       
-      return () => {} // placeholder
+      // Return unsubscribe function
+      return () => {
+        import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
+          FirebaseAuthentication.removeAllListeners()
+        })
+      }
     } else {
+      console.log('🌐 Setting up WEB auth listener')
       const { onAuthStateChanged } = require('firebase/auth')
       const { auth } = require('../config/firebase')
       return onAuthStateChanged(auth, callback)
