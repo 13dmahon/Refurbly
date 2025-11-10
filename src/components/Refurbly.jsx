@@ -3,37 +3,50 @@ import { FirestoreWrapper } from '../services/firebase-wrapper';
 import PaymentButton from './PaymentButton';
 import { useAuth } from '../hooks/useAuth.jsx';
 
+// Auto-calculate sqm from property details
+const AUTO_SQM = {
+  flat: { 1: 45, 2: 65, 3: 85, 4: 100, 5: 120 },
+  house: { 2: 75, 3: 95, 4: 120, 5: 150 },
+  maisonette: { 2: 70, 3: 90, 4: 110, 5: 135 }
+};
+
+// NEW RATES STRUCTURE with Labour + Materials
 const RATES = {
+  // Per sqm rates
   decoration: {
-    light: { budget: 200, standard: 300, premium: 500 },
-    standard: { budget: 400, standard: 600, premium: 1000 },
-    full: { budget: 600, standard: 900, premium: 1500 },
+    labour: { budget: 8, standard: 12, premium: 18 },    // £ per sqm
+    materials: { budget: 5, standard: 8, premium: 15 }   // £ per sqm
   },
   flooring: {
-    light: { budget: 25, standard: 35, premium: 50 },
-    standard: { budget: 40, standard: 60, premium: 90 },
-    full: { budget: 70, standard: 95, premium: 130 },
+    labour: { budget: 15, standard: 20, premium: 30 },
+    materials: { budget: 20, standard: 40, premium: 70 }
   },
   plastering: {
-    light: { budget: 0, standard: 0, premium: 0 },
-    standard: { budget: 25, standard: 35, premium: 50 },
-    full: { budget: 45, standard: 60, premium: 80 },
+    labour: { budget: 25, standard: 35, premium: 50 },
+    materials: { budget: 8, standard: 12, premium: 18 }
   },
+  
+  // Fixed rates
   kitchen: {
-    budget: 5000,
-    standard: 8000,
-    premium: 15000,
+    labour: { budget: 1500, standard: 2000, premium: 3000 },
+    materials: { budget: 3500, standard: 6000, premium: 12000 }
   },
   bathroom: {
-    budget: 3000,
-    standard: 4500,
-    premium: 7500,
+    labour: { budget: 1200, standard: 1800, premium: 2500 },
+    materials: { budget: 1800, standard: 2700, premium: 5000 }
   },
-  extras: {
-    rewire: { budget: 2500, standard: 3500, premium: 5000 },
-    heating: { budget: 3000, standard: 4000, premium: 6000 },
-    windows: { budget: 4000, standard: 6000, premium: 9000 },
+  rewire: {
+    labour: { budget: 1500, standard: 2000, premium: 3000 },
+    materials: { budget: 1000, standard: 1500, premium: 2000 }
   },
+  heating: {
+    labour: { budget: 1500, standard: 2000, premium: 2500 },
+    materials: { budget: 1500, standard: 2000, premium: 3500 }
+  },
+  windows: {
+    labour: { budget: 1000, standard: 1500, premium: 2000 },
+    materials: { budget: 3000, standard: 4500, premium: 7000 }
+  }
 };
 
 export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQuotes, onEditComplete }) {
@@ -47,33 +60,35 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     bedrooms: '2',
     bathrooms: '1',
     propertyType: 'house',
-    totalSqm: '75',
     location: '',
-    refurbLevel: 'standard',
     quality: 'standard',
-    includeKitchen: true,
-    includeBathroom: true,
-    includeRewire: false,
-    includeHeating: false,
-    includeWindows: false,
+    // What needs doing (checkboxes)
+    needsDecoration: true,
+    needsFlooring: true,
+    needsPlastering: false,
+    needsKitchen: true,
+    needsBathroom: true,
+    needsRewire: false,
+    needsHeating: false,
+    needsWindows: false,
   });
 
-  // Load editing quote data
   useEffect(() => {
     if (editingQuote) {
       setFormData({
         bedrooms: String(editingQuote.bedrooms || '2'),
         bathrooms: String(editingQuote.bathrooms || '1'),
         propertyType: editingQuote.propertyType || 'house',
-        totalSqm: String(editingQuote.totalSqm || '75'),
         location: editingQuote.location || '',
-        refurbLevel: editingQuote.refurbLevel || 'standard',
         quality: editingQuote.quality || 'standard',
-        includeKitchen: editingQuote.includeKitchen !== false,
-        includeBathroom: editingQuote.includeBathroom !== false,
-        includeRewire: editingQuote.includeRewire || false,
-        includeHeating: editingQuote.includeHeating || false,
-        includeWindows: editingQuote.includeWindows || false,
+        needsDecoration: editingQuote.needsDecoration !== false,
+        needsFlooring: editingQuote.needsFlooring !== false,
+        needsPlastering: editingQuote.needsPlastering || false,
+        needsKitchen: editingQuote.needsKitchen !== false,
+        needsBathroom: editingQuote.needsBathroom !== false,
+        needsRewire: editingQuote.needsRewire || false,
+        needsHeating: editingQuote.needsHeating || false,
+        needsWindows: editingQuote.needsWindows || false,
       });
     }
   }, [editingQuote]);
@@ -83,36 +98,79 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
   };
 
   const estimate = useMemo(() => {
-    const totalSqm = parseFloat(formData.totalSqm) || 75;
+    const bedrooms = parseInt(formData.bedrooms) || 2;
     const bathrooms = parseInt(formData.bathrooms) || 1;
-    const { refurbLevel, quality, includeKitchen, includeBathroom, includeRewire, includeHeating, includeWindows } = formData;
+    const propertyType = formData.propertyType;
+    const quality = formData.quality;
     
-    let breakdown = {};
+    // Auto-calculate sqm
+    const totalSqm = AUTO_SQM[propertyType]?.[bedrooms] || 75;
     
-    const decorationCost = RATES.decoration[refurbLevel][quality];
-    const flooringCost = totalSqm * RATES.flooring[refurbLevel][quality];
-    const plasteringCost = totalSqm * RATES.plastering[refurbLevel][quality];
+    let labourBreakdown = {};
+    let materialsBreakdown = {};
     
-    breakdown.decorationLabour = decorationCost;
-    breakdown.flooringTotal = flooringCost;
-    if (plasteringCost > 0) {
-      breakdown.plastering = plasteringCost;
+    // Calculate costs based on what's needed
+    if (formData.needsDecoration) {
+      labourBreakdown.decoration = totalSqm * RATES.decoration.labour[quality];
+      materialsBreakdown.decoration = totalSqm * RATES.decoration.materials[quality];
     }
     
-    if (includeKitchen) breakdown.kitchen = RATES.kitchen[quality];
-    if (includeBathroom) breakdown.bathrooms = RATES.bathroom[quality] * bathrooms;
-    if (includeRewire) breakdown.rewire = RATES.extras.rewire[quality];
-    if (includeHeating) breakdown.heating = RATES.extras.heating[quality];
-    if (includeWindows) breakdown.windows = RATES.extras.windows[quality];
+    if (formData.needsFlooring) {
+      labourBreakdown.flooring = totalSqm * RATES.flooring.labour[quality];
+      materialsBreakdown.flooring = totalSqm * RATES.flooring.materials[quality];
+    }
     
-    const subtotal = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
+    if (formData.needsPlastering) {
+      labourBreakdown.plastering = totalSqm * RATES.plastering.labour[quality];
+      materialsBreakdown.plastering = totalSqm * RATES.plastering.materials[quality];
+    }
+    
+    if (formData.needsKitchen) {
+      labourBreakdown.kitchen = RATES.kitchen.labour[quality];
+      materialsBreakdown.kitchen = RATES.kitchen.materials[quality];
+    }
+    
+    if (formData.needsBathroom) {
+      labourBreakdown.bathrooms = RATES.bathroom.labour[quality] * bathrooms;
+      materialsBreakdown.bathrooms = RATES.bathroom.materials[quality] * bathrooms;
+    }
+    
+    if (formData.needsRewire) {
+      labourBreakdown.rewire = RATES.rewire.labour[quality];
+      materialsBreakdown.rewire = RATES.rewire.materials[quality];
+    }
+    
+    if (formData.needsHeating) {
+      labourBreakdown.heating = RATES.heating.labour[quality];
+      materialsBreakdown.heating = RATES.heating.materials[quality];
+    }
+    
+    if (formData.needsWindows) {
+      labourBreakdown.windows = RATES.windows.labour[quality];
+      materialsBreakdown.windows = RATES.windows.materials[quality];
+    }
+    
+    const totalLabour = Object.values(labourBreakdown).reduce((sum, val) => sum + val, 0);
+    const totalMaterials = Object.values(materialsBreakdown).reduce((sum, val) => sum + val, 0);
+    const subtotal = totalLabour + totalMaterials;
     const contingency = Math.round(subtotal * 0.15);
+    const total = subtotal + contingency;
+    
+    // Calculate range (±20%)
+    const rangeMin = Math.round(total * 0.8);
+    const rangeMax = Math.round(total * 1.2);
     
     return {
-      breakdown,
+      labourBreakdown,
+      materialsBreakdown,
+      totalLabour,
+      totalMaterials,
       subtotal,
       contingency,
-      total: subtotal + contingency,
+      total,
+      rangeMin,
+      rangeMax,
+      totalSqm
     };
   }, [formData]);
 
@@ -122,7 +180,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       return;
     }
 
-    // Check quote limit for new quotes
     if (!isEditing && quotesCount >= maxQuotes) {
       if (isPremium) {
         alert('You\'ve reached the maximum of 10 saved quotes. Please delete some quotes to add new ones.');
@@ -142,28 +199,33 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         propertyType: formData.propertyType,
         bedrooms: parseInt(formData.bedrooms),
         bathrooms: parseInt(formData.bathrooms),
-        totalSqm: parseFloat(formData.totalSqm),
-        refurbLevel: formData.refurbLevel,
+        totalSqm: estimate.totalSqm,
         quality: formData.quality,
-        includeKitchen: formData.includeKitchen,
-        includeBathroom: formData.includeBathroom,
-        includeRewire: formData.includeRewire,
-        includeHeating: formData.includeHeating,
-        includeWindows: formData.includeWindows,
+        needsDecoration: formData.needsDecoration,
+        needsFlooring: formData.needsFlooring,
+        needsPlastering: formData.needsPlastering,
+        needsKitchen: formData.needsKitchen,
+        needsBathroom: formData.needsBathroom,
+        needsRewire: formData.needsRewire,
+        needsHeating: formData.needsHeating,
+        needsWindows: formData.needsWindows,
         estimate: estimate.total,
-        breakdown: estimate.breakdown,
+        rangeMin: estimate.rangeMin,
+        rangeMax: estimate.rangeMax,
+        breakdown: {
+          labour: estimate.labourBreakdown,
+          materials: estimate.materialsBreakdown
+        },
         updatedAt: new Date().toISOString(),
       };
 
       if (isEditing) {
-        // Update existing quote
         await FirestoreWrapper.updateDoc('quotes', editingQuote.id, quoteData);
         setSaveSuccess(true);
         setTimeout(() => {
           if (onEditComplete) onEditComplete();
         }, 1500);
       } else {
-        // Create new quote
         quoteData.createdAt = new Date().toISOString();
         await FirestoreWrapper.addDoc('quotes', quoteData);
         setSaveSuccess(true);
@@ -178,67 +240,38 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     }
   };
 
-  const handleNext = () => setStep((s) => Math.min(s + 1, 4));
+  const handleNext = () => setStep((s) => Math.min(s + 1, 3));
   const handleBack = () => setStep((s) => Math.max(s - 1, 1));
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Show editing banner */}
-      {isEditing && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">✏️</span>
-            <div>
-              <p className="font-semibold text-blue-900">Editing Quote</p>
-              <p className="text-sm text-blue-700">{editingQuote.location || 'No location'} • Changes will update this quote</p>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Progress indicator */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center flex-1">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                  s <= step ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'
-                }`}
-              >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s <= step ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
                 {s}
               </div>
-              {s < 4 && (
-                <div className={`h-1 flex-1 mx-2 rounded transition-all ${s < step ? 'bg-blue-600' : 'bg-slate-200'}`} />
-              )}
+              {s < 3 && <div className={`h-1 flex-1 mx-2 rounded transition-all ${s < step ? 'bg-blue-600' : 'bg-slate-200'}`} />}
             </div>
           ))}
         </div>
         <div className="flex justify-between text-xs sm:text-sm text-slate-600 mt-2">
           <span>Property</span>
-          <span>Refurb Type</span>
-          <span>Quality</span>
+          <span>What's Needed</span>
           <span>Estimate</span>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8">
+        {/* STEP 1: Property Details */}
         {step === 1 && (
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Property Details</h2>
-            <p className="text-slate-600 mb-6">Tell us about the property you're refurbishing</p>
+            <p className="text-slate-600 mb-6">Tell us about the property</p>
 
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Property Location (optional)</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => updateForm('location', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                  placeholder="e.g., 123 Oak Street, Manchester"
-                />
-              </div>
-
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Property Type</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -247,11 +280,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       key={type}
                       type="button"
                       onClick={() => updateForm('propertyType', type)}
-                      className={`p-4 rounded-xl border-2 font-medium transition-all capitalize ${
-                        formData.propertyType === type
-                          ? 'border-blue-600 bg-blue-50 text-blue-700'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                      }`}
+                      className={`p-4 rounded-xl border-2 font-medium transition-all capitalize ${formData.propertyType === type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
                     >
                       {type}
                     </button>
@@ -262,253 +291,216 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Bedrooms</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
+                  <select
                     value={formData.bedrooms}
                     onChange={(e) => updateForm('bedrooms', e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                  />
+                  >
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Bathrooms</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="6"
+                  <select
                     value={formData.bathrooms}
                     onChange={(e) => updateForm('bathrooms', e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                  />
+                  >
+                    {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Total Floor Area (sqm)
-                  <span className="ml-2 text-xs font-normal text-slate-500">Optional</span>
+                  Property Location <span className="font-normal text-slate-500">(Optional)</span>
                 </label>
                 <input
-                  type="number"
-                  min="20"
-                  max="500"
-                  value={formData.totalSqm}
-                  onChange={(e) => updateForm('totalSqm', e.target.value)}
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => updateForm('location', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
-                  placeholder="e.g., 75"
+                  placeholder="e.g., 123 Oak Street, Manchester"
                 />
               </div>
             </div>
           </div>
         )}
 
+        {/* STEP 2: What Needs Doing */}
         {step === 2 && (
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Refurbishment Scope</h2>
-            <p className="text-slate-600 mb-6">What work needs doing?</p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-3">Refurb Level</label>
-                <div className="space-y-3">
-                  {[
-                    { value: 'light', label: 'Light Refresh', desc: 'Paint, carpets, cosmetic updates' },
-                    { value: 'standard', label: 'Standard Refurb', desc: 'Full decoration, flooring, kitchen & bathroom refresh' },
-                    { value: 'full', label: 'Full Refurbishment', desc: 'Complete overhaul - everything renewed' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => updateForm('refurbLevel', option.value)}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                        formData.refurbLevel === option.value
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="font-semibold text-slate-900">{option.label}</div>
-                      <div className="text-sm text-slate-600 mt-1">{option.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-200">
-                <label className="block text-sm font-semibold text-slate-700 mb-3">Additional Works</label>
-                <div className="space-y-2">
-                  {[
-                    { field: 'includeKitchen', label: 'Include kitchen refurb' },
-                    { field: 'includeBathroom', label: `Include bathroom refurb` },
-                    { field: 'includeRewire', label: 'Full electrical rewire' },
-                    { field: 'includeHeating', label: 'New heating system/boiler' },
-                    { field: 'includeWindows', label: 'Replace windows' },
-                  ].map((checkbox) => (
-                    <label key={checkbox.field} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData[checkbox.field]}
-                        onChange={(e) => updateForm(checkbox.field, e.target.checked)}
-                        className="w-5 h-5 rounded border-slate-300 text-blue-600"
-                      />
-                      <span className="text-slate-700">{checkbox.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Quality Level</h2>
-            <p className="text-slate-600 mb-6">What standard of finish are you aiming for?</p>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">What Needs Doing?</h2>
+            <p className="text-slate-600 mb-6">Select all that apply</p>
 
             <div className="space-y-3">
               {[
-                { value: 'budget', label: 'Budget', desc: 'Basic, functional finish', icon: '💰' },
-                { value: 'standard', label: 'Standard', desc: 'Good quality, mid-range finishes', icon: '🏡' },
-                { value: 'premium', label: 'Premium', desc: 'High-end finishes and fittings', icon: '⭐' },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => updateForm('quality', option.value)}
-                  className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
-                    formData.quality === option.value
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
+                { field: 'needsDecoration', label: 'Full Decoration', desc: 'Painting, decorating throughout' },
+                { field: 'needsFlooring', label: 'New Flooring', desc: 'Carpets, laminate, or tiles' },
+                { field: 'needsPlastering', label: 'Plastering', desc: 'Walls and ceilings' },
+                { field: 'needsKitchen', label: 'New Kitchen', desc: 'Full kitchen replacement' },
+                { field: 'needsBathroom', label: 'New Bathroom(s)', desc: 'Complete bathroom refurb' },
+                { field: 'needsRewire', label: 'Full Rewire', desc: 'Complete electrical rewiring' },
+                { field: 'needsHeating', label: 'New Heating System', desc: 'Boiler and radiators' },
+                { field: 'needsWindows', label: 'Replace Windows', desc: 'New double glazing' },
+              ].map((item) => (
+                <label
+                  key={item.field}
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData[item.field] ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="text-3xl">{option.icon}</span>
-                    <div>
-                      <div className="font-semibold text-slate-900 text-lg">{option.label}</div>
-                      <div className="text-sm text-slate-600 mt-1">{option.desc}</div>
-                    </div>
+                  <input
+                    type="checkbox"
+                    checked={formData[item.field]}
+                    onChange={(e) => updateForm(item.field, e.target.checked)}
+                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-blue-600"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-slate-900">{item.label}</div>
+                    <div className="text-sm text-slate-600">{item.desc}</div>
                   </div>
-                </button>
+                </label>
               ))}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <label className="block text-sm font-semibold text-slate-700 mb-3">Quality Level</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { value: 'budget', label: 'Budget', icon: '💰', desc: 'Basic, functional finish' },
+                  { value: 'standard', label: 'Standard', icon: '🏡', desc: 'Good quality, mid-range' },
+                  { value: 'premium', label: 'Premium', icon: '⭐', desc: 'High-end finishes' }
+                ].map((q) => (
+                  <button
+                    key={q.value}
+                    type="button"
+                    onClick={() => updateForm('quality', q.value)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${formData.quality === q.value ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+                  >
+                    <div className="text-2xl mb-2">{q.icon}</div>
+                    <div className="font-semibold text-slate-900">{q.label}</div>
+                    <div className="text-sm text-slate-600">{q.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {step === 4 && (
+        {/* STEP 3: Estimate */}
+        {step === 3 && (
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              {isEditing ? 'Updated Estimate' : 'Your Estimate'}
-            </h2>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">{isEditing ? 'Updated Estimate' : 'Your Estimate'}</h2>
             <p className="text-slate-600 mb-6">
               {formData.location && `${formData.location} • `}
               {formData.bedrooms} bed {formData.propertyType} • {formData.quality} quality
             </p>
 
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
-              <div className="text-sm opacity-90 mb-1">Total Estimated Cost</div>
-              <div className="text-4xl font-bold">£{estimate.total.toLocaleString()}</div>
-              <div className="text-sm opacity-75 mt-2">Including 15% contingency</div>
-            </div>
+            {/* ESTIMATE DISPLAY - RANGE FOR FREE/SIGNED UP */}
+            {!isPremium ? (
+              <>
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                  <div className="text-sm opacity-90 mb-1">Estimated Cost Range</div>
+                  <div className="text-4xl font-bold">
+                    £{estimate.rangeMin.toLocaleString()} - £{estimate.rangeMax.toLocaleString()}
+                  </div>
+                  <div className="text-sm opacity-75 mt-2">Based on UK trade rates</div>
+                </div>
 
-            {!isPremium && !isEditing && (
-              <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-6 mb-6">
-                <div className="flex items-start gap-4">
-                  <div className="text-4xl">🔓</div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-slate-900 mb-2">Unlock Full Breakdown</h3>
-                    <p className="text-slate-700 mb-4">Get detailed costs and edit saved quotes</p>
-                    
-                    <ul className="space-y-2 mb-4 text-sm text-slate-700">
-                      <li className="flex items-center gap-2">
-                        <span className="text-green-600">✓</span> Save up to 10 quotes (vs 5 free)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="text-green-600">✓</span> Full cost breakdown
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="text-green-600">✓</span> Edit saved quotes
-                      </li>
-                    </ul>
-
-                    {user ? (
-                      <PaymentButton quoteData={formData} />
-                    ) : (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        <p className="text-sm text-amber-800">
-                          Please sign in to unlock premium features
-                        </p>
+                {/* BLURRED BREAKDOWN */}
+                <div className="relative mb-6">
+                  <div className="blur-sm pointer-events-none select-none">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Cost Breakdown</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between py-3 border-b">
+                          <span>Labour Costs</span>
+                          <span className="font-bold">£{estimate.totalLabour.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between py-3 border-b">
+                          <span>Materials</span>
+                          <span className="font-bold">£{estimate.totalMaterials.toLocaleString()}</span>
+                        </div>
+                        {Object.keys(estimate.labourBreakdown).map(key => (
+                          <div key={key} className="text-sm text-gray-600 ml-4">
+                            {key}: Labour £XXX + Materials £XXX
+                          </div>
+                        ))}
                       </div>
-                    )}
+                    </div>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 text-center max-w-sm">
+                      <div className="text-4xl mb-4">🔒</div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
+                      <p className="text-gray-600 mb-4">See detailed labour and material costs for each item</p>
+                      {user ? (
+                        <PaymentButton quoteData={formData} />
+                      ) : (
+                        <div className="text-amber-700 text-sm">Sign in to unlock premium features</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              </>
+            ) : (
+              <>
+                {/* EXACT ESTIMATE FOR PREMIUM */}
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                  <div className="text-sm opacity-90 mb-1">Total Estimated Cost</div>
+                  <div className="text-4xl font-bold">£{estimate.total.toLocaleString()}</div>
+                  <div className="text-sm opacity-75 mt-2">Including 15% contingency</div>
+                </div>
 
-            {isPremium && (
-              <div className="space-y-3 mb-6">
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
                   <div className="flex items-center gap-2 text-green-800">
                     <span className="text-xl">✅</span>
-                    <span className="font-semibold">Premium - Full breakdown</span>
+                    <span className="font-semibold">Premium - Full breakdown unlocked</span>
                   </div>
                 </div>
-                
-                {estimate.breakdown.decorationLabour && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Decoration Labour</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.decorationLabour.toLocaleString()}</span>
+
+                {/* FULL BREAKDOWN */}
+                <div className="space-y-4 mb-6">
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-blue-900">Total Labour</span>
+                      <span className="text-xl font-bold text-blue-900">£{estimate.totalLabour.toLocaleString()}</span>
+                    </div>
                   </div>
-                )}
-                {estimate.breakdown.flooringTotal && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Flooring ({parseFloat(formData.totalSqm)}sqm)</span>
-                    <span className="font-semibold text-slate-900">£{Math.round(estimate.breakdown.flooringTotal).toLocaleString()}</span>
+                  
+                  {Object.entries(estimate.labourBreakdown).map(([key, value]) => (
+                    <div key={key} className="flex justify-between items-center py-3 border-b border-slate-200 ml-4">
+                      <span className="text-slate-700 capitalize">{key} Labour</span>
+                      <span className="font-semibold text-slate-900">£{Math.round(value).toLocaleString()}</span>
+                    </div>
+                  ))}
+
+                  <div className="bg-purple-50 rounded-xl p-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-purple-900">Total Materials</span>
+                      <span className="text-xl font-bold text-purple-900">£{estimate.totalMaterials.toLocaleString()}</span>
+                    </div>
                   </div>
-                )}
-                {estimate.breakdown.plastering && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Plastering</span>
-                    <span className="font-semibold text-slate-900">£{Math.round(estimate.breakdown.plastering).toLocaleString()}</span>
+
+                  {Object.entries(estimate.materialsBreakdown).map(([key, value]) => (
+                    <div key={key} className="flex justify-between items-center py-3 border-b border-slate-200 ml-4">
+                      <span className="text-slate-700 capitalize">{key} Materials</span>
+                      <span className="font-semibold text-slate-900">£{Math.round(value).toLocaleString()}</span>
+                    </div>
+                  ))}
+
+                  <div className="bg-amber-50 rounded-xl p-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-amber-900">Contingency (15%)</span>
+                      <span className="text-xl font-bold text-amber-900">£{estimate.contingency.toLocaleString()}</span>
+                    </div>
                   </div>
-                )}
-                {estimate.breakdown.kitchen && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Kitchen</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.kitchen.toLocaleString()}</span>
-                  </div>
-                )}
-                {estimate.breakdown.bathrooms && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Bathrooms</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.bathrooms.toLocaleString()}</span>
-                  </div>
-                )}
-                {estimate.breakdown.rewire && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Rewire</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.rewire.toLocaleString()}</span>
-                  </div>
-                )}
-                {estimate.breakdown.heating && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Heating</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.heating.toLocaleString()}</span>
-                  </div>
-                )}
-                {estimate.breakdown.windows && (
-                  <div className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <span className="text-slate-700">Windows</span>
-                    <span className="font-semibold text-slate-900">£{estimate.breakdown.windows.toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
+                </div>
+              </>
             )}
 
             {saveSuccess && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <p className="text-green-800 font-semibold">
-                  ✓ Quote {isEditing ? 'updated' : 'saved'} successfully!
-                </p>
+                <p className="text-green-800 font-semibold">✓ Quote {isEditing ? 'updated' : 'saved'} successfully!</p>
               </div>
             )}
 
@@ -523,13 +515,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                 </button>
               )}
               
-              <button
-                type="button"
-                className="w-full px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-all"
-              >
-                📧 Email This Quote
-              </button>
-              
               {!isEditing && (
                 <button
                   type="button"
@@ -543,7 +528,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           </div>
         )}
 
-        {step < 4 && (
+        {/* Navigation */}
+        {step < 3 && (
           <div className="flex gap-3 mt-8 pt-6 border-t border-slate-200">
             {step > 1 && (
               <button
@@ -559,7 +545,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               onClick={handleNext}
               className="flex-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-lg"
             >
-              {step === 3 ? 'Get Estimate' : 'Next'}
+              {step === 2 ? 'Get Estimate' : 'Next'}
             </button>
           </div>
         )}

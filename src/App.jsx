@@ -267,7 +267,7 @@ function App() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Refurb level:</span>
-                          <span className="font-semibold capitalize">{quote.refurbLevel}</span>
+                          <span className="font-semibold">Custom refurb</span>
                         </div>
                       </div>
 
