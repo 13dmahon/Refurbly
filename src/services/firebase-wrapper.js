@@ -153,7 +153,15 @@ export const FirestoreWrapper = {
         data: serializedData
       })
       console.log('✅ Native addDoc complete:', result)
-      return { id: result.reference.split('/').pop() }
+      // Handle different reference formats from native plugin
+      const reference = result?.reference
+      if (typeof reference === 'string') {
+        return { id: reference.split('/').pop(), path: reference }
+      }
+      if (reference && typeof reference === 'object') {
+        return reference
+      }
+      return result
     } else {
       const { collection: fbCollection, addDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
