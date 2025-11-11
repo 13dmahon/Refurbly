@@ -1,13 +1,10 @@
 import { useState } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  sendEmailVerification
-} from 'firebase/auth';
+import { useAuth } from '../hooks/useAuth';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
 export default function AuthModal({ isOpen, onClose, onSuccess }) {
+  const { login, signup } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,26 +22,17 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
 
     try {
       if (isLogin) {
-        // Login
-        await signInWithEmailAndPassword(auth, email, password);
-        
-        onClose();
+        // Use the wrapper that handles native + web
+        await login(email, password);
       } else {
-        // Sign up
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        
-        // Send verification email
-        await sendEmailVerification(userCredential.user);
-        
-        setError('');
+        // Use the wrapper that handles native + web
+        await signup(email, password);
         alert('Account created! Please check your email to verify your account.');
-        
-        onClose();
       }
+      onClose();
     } catch (err) {
-      console.error('Auth error:', err.code);
+      console.error('Auth error:', err);
       
-      // Generic error messages for security
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password');
       } else if (err.code === 'auth/email-already-in-use') {
