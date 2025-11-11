@@ -63,7 +63,7 @@ export default function HomePage({ onStartCalculator }) {
           </div>
         </div>
       </div>
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={() => {}} />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={() => setShowAuthModal(false)} />
       {showDiagnostics && <DiagnosticPage onClose={() => setShowDiagnostics(false)} />}
     </>
   );
