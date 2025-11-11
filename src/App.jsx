@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { useAuth } from './hooks/useAuth.jsx';
 import HomePage from './components/HomePage';
