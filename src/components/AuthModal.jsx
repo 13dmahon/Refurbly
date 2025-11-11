@@ -27,7 +27,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
       if (isLogin) {
         // Login
         await signInWithEmailAndPassword(auth, email, password);
-        onSuccess();
+        
         onClose();
       } else {
         // Sign up
@@ -38,7 +38,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
         
         setError('');
         alert('Account created! Please check your email to verify your account.');
-        onSuccess();
+        
         onClose();
       }
     } catch (err) {
