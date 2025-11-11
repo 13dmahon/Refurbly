@@ -9,10 +9,17 @@ service cloud.firestore {
     
     // Users can read/write their own quotes
     match /quotes/{quoteId} {
-      allow read, write: if request.auth != null && 
-                           resource.data.userId == request.auth.uid;
+      // For reads and updates, check the existing document
+      allow read, update, delete: if request.auth != null && 
+                                     resource.data.userId == request.auth.uid;
+      // For creates, check the incoming document
       allow create: if request.auth != null && 
                       request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Allow diagnostics writes (for testing)
+    match /diagnostics/{docId} {
+      allow create: if request.auth != null;
     }
   }
 }
