@@ -78,7 +78,10 @@ function App() {
   };
 
   const handleQuoteSaved = () => {
-    if (currentView === 'dashboard') {
+    console.log("Quote saved! Reloading and navigating to dashboard...");
+    // Always reload quotes after save
+    setCurrentView("dashboard");
+    if (true) {
       loadSavedQuotes();
     }
   };
