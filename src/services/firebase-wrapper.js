@@ -197,6 +197,59 @@ export const FirestoreWrapper = {
       
       console.log('[FB][NATIVE] getDocsWhere', { collectionName, field, operator, value });
       
+      // Log query attempt
+      try {
+        await FirebaseFirestore.addDocument({
+          reference: 'diagnostics',
+          data: { ts: Date.now(), src: 'native.getDocsWhere.before', collectionName, field, operator, value }
+        });
+      } catch (e) {}
+      
+      // TRY the actual query
+      try {
+        const result = await FirebaseFirestore.queryDocuments({
+          reference: collectionName,
+          queryConstraints
+        });
+        
+        console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
+        
+        // Log success
+        try {
+          await FirebaseFirestore.addDocument({
+            reference: 'diagnostics',
+            data: { ts: Date.now(), src: 'native.getDocsWhere.after', count: (result.snapshots?.length || 0), firstDoc: result?.snapshots?.[0]?.data || null }
+          });
+        } catch (e) {}
+        
+        return (result.snapshots || []).map(snap => ({ id: snap.id, ...snap.data }));
+        
+      } catch (e) {
+        // Log the ERROR
+        console.error('[FB][NATIVE] getDocsWhere ERROR:', e);
+        try {
+          await FirebaseFirestore.addDocument({
+            reference: 'diagnostics',
+            data: { ts: Date.now(), src: 'native.getDocsWhere.error', message: e?.message || String(e), code: e?.code || null }
+          });
+        } catch (_) {}
+        throw e;
+      }
+    } else {
+      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
+      const { collection, query, where, getDocs } = await import('firebase/firestore')
+      const { db } = await import('../config/firebase')
+      const q = query(collection(db, collectionName), where(field, operator, value))
+      const snapshot = await getDocs(q)
+      const docs = []
+      snapshot.forEach(doc => {
+        docs.push({ id: doc.id, ...doc.data() })
+      })
+      console.log(`✅ Web query got ${docs.length} docs`);
+      return docs
+    }
+  });
+      
       // Write query to diagnostics for debugging
       try {
         await FirebaseFirestore.addDocument({
