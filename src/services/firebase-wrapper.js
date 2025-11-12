@@ -148,66 +148,16 @@ export const FirestoreWrapper = {
 
   // Server-side filtered read; native branch writes diagnostics (before/after/error)
   getDocsWhere: async (collectionName, field, operator, value) => {
-    if (isNative) {
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
-
-      const queryConstraints = [
-        { type: 'where', fieldPath: field, opStr: operator, value },
-      ];
-
-      // BEFORE diagnostics
-      try {
-        await FirebaseFirestore.addDocument({
-          reference: 'diagnostics',
-          data: { ts: Date.now(), src: 'native.getDocsWhere.before', collectionName, field, operator, value },
-        });
-      } catch (_) {}
-
-      try {
-        const result = await FirebaseFirestore.queryDocuments({
-          reference: collectionName,
-          queryConstraints,
-        });
-
-        const count = result?.snapshots?.length || 0;
-
-        // AFTER diagnostics
-        try {
-          await FirebaseFirestore.addDocument({
-            reference: 'diagnostics',
-            data: {
-              ts: Date.now(),
-              src: 'native.getDocsWhere.after',
-              count,
-              firstDoc: count > 0 ? result.snapshots[0].data : null,
-            },
-          });
-        } catch (_) {}
-
-        return (result.snapshots || []).map((snap) => ({ id: snap.id, ...snap.data }));
-      } catch (e) {
-        // ERROR diagnostics
-        try {
-          await FirebaseFirestore.addDocument({
-            reference: 'diagnostics',
-            data: {
-              ts: Date.now(),
-              src: 'native.getDocsWhere.error',
-              message: e?.message || String(e),
-              code: e?.code || null,
-            },
-          });
-        } catch (_) {}
-        throw e;
-      }
-    } else {
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const { db } = await import('../config/firebase');
-      const q = query(collection(db, collectionName), where(field, operator, value));
-      const snap = await getDocs(q);
-      const docs = [];
-      snap.forEach((d) => docs.push({ id: d.id, ...d.data() }));
-      return docs;
-    }
+    // NOTE: @capacitor-firebase/firestore does NOT implement queryDocuments() on iOS.
+    // So we use the Web SDK here (works fine inside the iOS WebView).
+    console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
+    const { collection, query, where, getDocs } = await import('firebase/firestore');
+    const { db } = await import('../config/firebase');
+    const q = query(collection(db, collectionName), where(field, operator, value));
+    const snapshot = await getDocs(q);
+    const docs = [];
+    snapshot.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    console.log(`✅ Web query got ${docs.length} docs`);
+    return docs;
   },
 };
