@@ -6,6 +6,7 @@ import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
+import SimpleTest from './components/SimpleTest';
 
 function App() {
   const { user, loading, logout, isPremium } = useAuth();
@@ -170,6 +171,8 @@ function App() {
           </div>
         </div>
       )}
+
+      {currentView === 'test' && user && <SimpleTest />}
 
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
