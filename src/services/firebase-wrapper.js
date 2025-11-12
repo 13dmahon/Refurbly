@@ -1,322 +1,213 @@
 /**
- * Firebase wrapper that uses native plugins on iOS/Android
- * and web SDK in browsers
+ * Cross-platform Firebase wrapper for Capacitor (native) + Web SDK (browser)
+ * Includes diagnostics for native getDocsWhere() to Firestore /diagnostics
  */
-import { Capacitor } from '@capacitor/core'
+import { Capacitor } from '@capacitor/core';
 
-const isNative = Capacitor.isNativePlatform()
-const platform = Capacitor.getPlatform()
+const isNative = Capacitor.isNativePlatform();
+const platform = Capacitor.getPlatform();
 
-console.log(`🔥 Firebase Platform: ${platform} (native: ${isNative})`)
+const serializeForNative = (data) => JSON.parse(JSON.stringify(data));
 
-// Helper to serialize data for native Firestore
-const serializeForNative = (data) => {
-  return JSON.parse(JSON.stringify(data))
-}
-
-// Auth wrapper
 export const FirebaseAuthWrapper = {
   signIn: async (email, password) => {
     if (isNative) {
-      console.log('📱 Native sign in...')
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
-      const result = await FirebaseAuthentication.signInWithEmailAndPassword({ email, password })
-      return { user: result.user }
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+      const result = await FirebaseAuthentication.signInWithEmailAndPassword({ email, password });
+      return { user: result.user };
     } else {
-      console.log('🌐 Web sign in...')
-      const { signInWithEmailAndPassword } = await import('firebase/auth')
-      const { auth } = await import('../config/firebase')
-      return await signInWithEmailAndPassword(auth, email, password)
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      const { auth } = await import('../config/firebase');
+      return await signInWithEmailAndPassword(auth, email, password);
     }
   },
 
   signUp: async (email, password) => {
     if (isNative) {
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
-      const result = await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password })
-      return { user: result.user }
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+      const result = await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password });
+      return { user: result.user };
     } else {
-      const { createUserWithEmailAndPassword } = await import('firebase/auth')
-      const { auth } = await import('../config/firebase')
-      return await createUserWithEmailAndPassword(auth, email, password)
+      const { createUserWithEmailAndPassword } = await import('firebase/auth');
+      const { auth } = await import('../config/firebase');
+      return await createUserWithEmailAndPassword(auth, email, password);
     }
   },
 
   signOut: async () => {
     if (isNative) {
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
-      await FirebaseAuthentication.signOut()
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+      await FirebaseAuthentication.signOut();
     } else {
-      const { signOut } = await import('firebase/auth')
-      const { auth } = await import('../config/firebase')
-      await signOut(auth)
+      const { signOut } = await import('firebase/auth');
+      const { auth } = await import('../config/firebase');
+      await signOut(auth);
     }
   },
 
   onAuthStateChanged: (callback) => {
     if (isNative) {
-      console.log('📱 Setting up NATIVE auth listener')
-      
       import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
         FirebaseAuthentication.addListener('authStateChange', (change) => {
-          console.log('📱 Native auth state changed:', change.user)
-          callback(change.user || null)
-        })
-        
-        FirebaseAuthentication.getCurrentUser().then(result => {
-          console.log('📱 Current native user:', result.user)
-          callback(result.user || null)
-        }).catch(err => {
-          console.log('📱 No current user:', err)
-          callback(null)
-        })
-      })
-      
+          callback(change.user || null);
+        });
+        FirebaseAuthentication.getCurrentUser()
+          .then((res) => callback(res.user || null))
+          .catch(() => callback(null));
+      });
       return () => {
         import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => {
-          FirebaseAuthentication.removeAllListeners()
-        })
-      }
+          FirebaseAuthentication.removeAllListeners();
+        });
+      };
     } else {
-      console.log('🌐 Setting up WEB auth listener')
-      let unsubscribe = () => {}
-      import('firebase/auth').then(({ onAuthStateChanged }) => {
-        import('../config/firebase').then(({ auth }) => {
-          unsubscribe = onAuthStateChanged(auth, callback)
-        })
-      })
-      return () => unsubscribe()
+      return (async () => {
+        const { onAuthStateChanged } = await import('firebase/auth');
+        const { auth } = await import('../config/firebase');
+        return onAuthStateChanged(auth, (u) => callback(u || null));
+      })();
     }
   },
+};
 
-  getCurrentUser: async () => {
-    if (isNative) {
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
-      const result = await FirebaseAuthentication.getCurrentUser()
-      return result.user
-    } else {
-      const { auth } = await import('../config/firebase')
-      return auth.currentUser
-    }
-  }
-}
-
-// Firestore wrapper
 export const FirestoreWrapper = {
   getDoc: async (collection, docId) => {
     if (isNative) {
-      console.log(`📱 Native getDoc: ${collection}/${docId}`)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const result = await FirebaseFirestore.getDocument({
-        reference: `${collection}/${docId}`
-      })
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+      const result = await FirebaseFirestore.getDocument({ reference: `${collection}/${docId}` });
       return {
-        exists: () => result.snapshot.exists,
-        data: () => result.snapshot.data,
-        id: docId
-      }
+        exists: () => result?.snapshot?.exists,
+        data: () => result?.snapshot?.data,
+        id: docId,
+      };
     } else {
-      const { doc, getDoc } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      return await getDoc(docRef)
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const ref = doc(db, collection, docId);
+      return await getDoc(ref);
     }
   },
 
   setDoc: async (collection, docId, data) => {
     if (isNative) {
-      console.log(`📱 Native setDoc: ${collection}/${docId}`, data)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
       await FirebaseFirestore.setDocument({
         reference: `${collection}/${docId}`,
-        data: serializedData
-      })
-      console.log('✅ Native setDoc complete')
+        data: serializeForNative(data),
+      });
     } else {
-      const { doc, setDoc } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      await setDoc(docRef, data)
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      await setDoc(doc(db, collection, docId), data);
     }
   },
 
   addDoc: async (collection, data) => {
     if (isNative) {
-      console.log(`📱 Native addDoc to: ${collection}`, data)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
-      console.log('📱 Serialized data:', serializedData)
-      const result = await FirebaseFirestore.addDocument({
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+      const res = await FirebaseFirestore.addDocument({
         reference: collection,
-        data: serializedData
-      })
-      console.log('✅ Native addDoc complete:', result)
-      const reference = result?.reference
-      if (typeof reference === 'string') {
-        return { id: reference.split('/').pop(), path: reference }
-      }
-      if (reference && typeof reference === 'object') {
-        return reference
-      }
-      return result
+        data: serializeForNative(data),
+      });
+      // Normalize return
+      const ref = res?.reference;
+      if (typeof ref === 'string') return { id: ref.split('/').pop(), path: ref };
+      return res;
     } else {
-      const { collection: fbCollection, addDoc } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const colRef = fbCollection(db, collection)
-      return await addDoc(colRef, data)
+      const { collection: coll, addDoc } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const ref = await addDoc(coll(db, collection), data);
+      return { id: ref.id };
     }
   },
 
   updateDoc: async (collection, docId, data) => {
     if (isNative) {
-      console.log(`📱 Native updateDoc: ${collection}/${docId}`, data)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
       await FirebaseFirestore.updateDocument({
         reference: `${collection}/${docId}`,
-        data: serializedData
-      })
-      console.log('✅ Native updateDoc complete')
+        data: serializeForNative(data),
+      });
     } else {
-      const { doc, updateDoc } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      await updateDoc(docRef, data)
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      await updateDoc(doc(db, collection, docId), data);
     }
   },
 
-  // Query with server-side filtering (respects Firestore security rules)
+  deleteDoc: async (collection, docId) => {
+    if (isNative) {
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+      await FirebaseFirestore.deleteDocument({ reference: `${collection}/${docId}` });
+    } else {
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      await deleteDoc(doc(db, collection, docId));
+    }
+  },
+
+  // Server-side filtered read; native branch writes diagnostics (before/after/error)
   getDocsWhere: async (collectionName, field, operator, value) => {
     if (isNative) {
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+
       const queryConstraints = [
-        { type: 'where', fieldPath: field, opStr: operator, value }
+        { type: 'where', fieldPath: field, opStr: operator, value },
       ];
-      
-      console.log('[FB][NATIVE] getDocsWhere', { collectionName, field, operator, value });
-      
-      // Log query attempt
+
+      // BEFORE diagnostics
       try {
         await FirebaseFirestore.addDocument({
           reference: 'diagnostics',
-          data: { ts: Date.now(), src: 'native.getDocsWhere.before', collectionName, field, operator, value }
+          data: { ts: Date.now(), src: 'native.getDocsWhere.before', collectionName, field, operator, value },
         });
-      } catch (e) {}
-      
-      // TRY the actual query
+      } catch (_) {}
+
       try {
         const result = await FirebaseFirestore.queryDocuments({
           reference: collectionName,
-          queryConstraints
+          queryConstraints,
         });
-        
-        console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
-        
-        // Log success
+
+        const count = result?.snapshots?.length || 0;
+
+        // AFTER diagnostics
         try {
           await FirebaseFirestore.addDocument({
             reference: 'diagnostics',
-            data: { ts: Date.now(), src: 'native.getDocsWhere.after', count: (result.snapshots?.length || 0), firstDoc: result?.snapshots?.[0]?.data || null }
+            data: {
+              ts: Date.now(),
+              src: 'native.getDocsWhere.after',
+              count,
+              firstDoc: count > 0 ? result.snapshots[0].data : null,
+            },
           });
-        } catch (e) {}
-        
-        return (result.snapshots || []).map(snap => ({ id: snap.id, ...snap.data }));
-        
+        } catch (_) {}
+
+        return (result.snapshots || []).map((snap) => ({ id: snap.id, ...snap.data }));
       } catch (e) {
-        // Log the ERROR
-        console.error('[FB][NATIVE] getDocsWhere ERROR:', e);
+        // ERROR diagnostics
         try {
           await FirebaseFirestore.addDocument({
             reference: 'diagnostics',
-            data: { ts: Date.now(), src: 'native.getDocsWhere.error', message: e?.message || String(e), code: e?.code || null }
+            data: {
+              ts: Date.now(),
+              src: 'native.getDocsWhere.error',
+              message: e?.message || String(e),
+              code: e?.code || null,
+            },
           });
         } catch (_) {}
         throw e;
       }
     } else {
-      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
-      const { collection, query, where, getDocs } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const q = query(collection(db, collectionName), where(field, operator, value))
-      const snapshot = await getDocs(q)
-      const docs = []
-      snapshot.forEach(doc => {
-        docs.push({ id: doc.id, ...doc.data() })
-      })
-      console.log(`✅ Web query got ${docs.length} docs`);
-      return docs
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const q = query(collection(db, collectionName), where(field, operator, value));
+      const snap = await getDocs(q);
+      const docs = [];
+      snap.forEach((d) => docs.push({ id: d.id, ...d.data() }));
+      return docs;
     }
-  });
-      
-      // Write query to diagnostics for debugging
-      try {
-        await FirebaseFirestore.addDocument({
-          reference: 'diagnostics',
-          data: {
-            ts: Date.now(),
-            src: 'native.getDocsWhere.before',
-            collectionName,
-            field,
-            operator,
-            value
-          }
-        });
-      } catch (e) { console.warn('Diagnostics write failed:', e); }
-      
-      const result = await FirebaseFirestore.queryDocuments({
-        reference: collectionName,
-        queryConstraints
-      });
-      
-      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
-      
-      // Write result to diagnostics
-      try {
-        await FirebaseFirestore.addDocument({
-          reference: 'diagnostics',
-          data: {
-            ts: Date.now(),
-            src: 'native.getDocsWhere.after',
-            count: (result.snapshots?.length || 0),
-            firstDoc: result?.snapshots?.[0]?.data || null
-          }
-        });
-      } catch (e) { console.warn('Diagnostics write failed:', e); }
-      
-      return (result.snapshots || []).map(snap => ({
-        id: snap.id,
-        ...snap.data
-      }));
-    } else {
-      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
-      const { collection, query, where, getDocs } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const q = query(collection(db, collectionName), where(field, operator, value))
-      const snapshot = await getDocs(q)
-      const docs = []
-      snapshot.forEach(doc => {
-        docs.push({ id: doc.id, ...doc.data() })
-      })
-      console.log(`✅ Web query got ${docs.length} docs`);
-      return docs
-    }
-  }
-
-  ,
-  deleteDoc: async (collection, docId) => {
-    if (isNative) {
-      console.log(`📱 Native deleteDoc: ${collection}/${docId}`)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      await FirebaseFirestore.deleteDocument({ reference: `${collection}/${docId}` })
-      console.log('✅ Native deleteDoc complete')
-      return true
-    } else {
-      const { doc, deleteDoc } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      await deleteDoc(doc(db, collection, docId))
-      return true
-    }
-  }
-}
+  },
+};
