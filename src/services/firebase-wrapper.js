@@ -214,32 +214,4 @@ export const FirestoreWrapper = {
       return docs;
     }
   }
-  },
-
-  getAllDocs: async (collectionName) => {
-    if (isNative) {
-      console.log(`📱 Native getAllDocs: ${collectionName}`);
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
-      const result = await FirebaseFirestore.getCollection({
-        reference: collectionName
-      });
-      console.log(`✅ Native got ${result.snapshots?.length || 0} docs`);
-      return (result.snapshots || []).map(snap => ({
-        id: snap.id,
-        ...snap.data
-      }));
-    } else {
-      console.log(`🌐 Web getAllDocs: ${collectionName}`);
-      const { collection, getDocs } = await import('firebase/firestore');
-      const { db } = await import('../config/firebase');
-      const colRef = collection(db, collectionName);
-      const snapshot = await getDocs(colRef);
-      const docs = [];
-      snapshot.forEach(doc => {
-        docs.push({ id: doc.id, ...doc.data() });
-      });
-      console.log(`✅ Web got ${docs.length} docs`);
-      return docs;
-    }
-  }
 }
