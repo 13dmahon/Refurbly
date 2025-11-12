@@ -189,29 +189,55 @@ export const FirestoreWrapper = {
   // Query with server-side filtering (respects Firestore security rules)
   getDocsWhere: async (collectionName, field, operator, value) => {
     if (isNative) {
-      console.log(`📱 Native query: ${collectionName} where ${field} ${operator} ${value}`)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      
+      const queryConstraints = [
+        { type: 'where', fieldPath: field, opStr: operator, value }
+      ];
+      
+      console.log('[FB][NATIVE] getDocsWhere', { collectionName, field, operator, value });
+      
+      // Write query to diagnostics for debugging
+      try {
+        await FirebaseFirestore.addDocument({
+          reference: 'diagnostics',
+          data: {
+            ts: Date.now(),
+            src: 'native.getDocsWhere.before',
+            collectionName,
+            field,
+            operator,
+            value
+          }
+        });
+      } catch (e) { console.warn('Diagnostics write failed:', e); }
       
       const result = await FirebaseFirestore.queryDocuments({
         reference: collectionName,
-        compositeFilter: {
-          type: 'AND',
-          queryConstraints: [{
-            type: 'where',
-            fieldPath: field,
-            opStr: operator,
-            value: value
-          }]
-        }
-      })
+        queryConstraints
+      });
       
-      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`)
+      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
+      
+      // Write result to diagnostics
+      try {
+        await FirebaseFirestore.addDocument({
+          reference: 'diagnostics',
+          data: {
+            ts: Date.now(),
+            src: 'native.getDocsWhere.after',
+            count: (result.snapshots?.length || 0),
+            firstDoc: result?.snapshots?.[0]?.data || null
+          }
+        });
+      } catch (e) { console.warn('Diagnostics write failed:', e); }
+      
       return (result.snapshots || []).map(snap => ({
         id: snap.id,
         ...snap.data
-      }))
+      }));
     } else {
-      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`)
+      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
       const { collection, query, where, getDocs } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
       const q = query(collection(db, collectionName), where(field, operator, value))
@@ -220,7 +246,7 @@ export const FirestoreWrapper = {
       snapshot.forEach(doc => {
         docs.push({ id: doc.id, ...doc.data() })
       })
-      console.log(`✅ Web query got ${docs.length} docs`)
+      console.log(`✅ Web query got ${docs.length} docs`);
       return docs
     }
   }
