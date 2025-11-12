@@ -35,25 +35,19 @@ function App() {
     }
   }, [currentView, user]);
 
-  const loadSavedQuotes = async () => {
+    const loadSavedQuotes = async () => {
     if (!user) return;
     
     setLoadingQuotes(true);
     try {
       console.log('📋 [iOS-SAFE] Loading ALL quotes for user:', user.uid);
-      
-      // Use wrapper that works on both iOS native and web
       const allQuotes = await FirestoreWrapper.getAllDocs('quotes');
-      
-      // Filter to only this user's quotes
       const userQuotes = allQuotes.filter(q => q.userId === user.uid);
-      
-      console.log(`✅ Found ${userQuotes.length} quotes for user ${user.uid}`);
+      console.log(`✅ Found ${userQuotes.length} quotes`);
       userQuotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setSavedQuotes(userQuotes);
     } catch (error) {
       console.error('❌ Error loading quotes:', error);
-      alert('Failed to load quotes: ' + error.message);
     } finally {
       setLoadingQuotes(false);
     }
