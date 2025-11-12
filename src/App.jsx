@@ -149,7 +149,7 @@ function App() {
                 >
                   My Quotes
                 </button>
-                <ProfileDropdown />
+                <ProfileDropdown onLogout={handleLogout} />
               </div>
             )}
           </div>
@@ -180,7 +180,7 @@ function App() {
                 {isPremium && <span className="ml-2 text-green-600 font-semibold">✓ Premium</span>}
               </p>
             </div>
-            <ProfileDropdown />
+            <ProfileDropdown onLogout={handleLogout} />
           </div>
 
           <div className="p-6">

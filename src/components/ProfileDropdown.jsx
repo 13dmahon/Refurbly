@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 
-export default function ProfileDropdown() {
+export default function ProfileDropdown({ onLogout }) {
   const { user, isPremium, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showContact, setShowContact] = useState(false);
@@ -90,7 +90,7 @@ export default function ProfileDropdown() {
             </button>
             <button
               onClick={() => {
-                logout();
+                if (onLogout) onLogout();
                 setIsOpen(false);
               }}
               className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 transition text-sm text-red-600"
