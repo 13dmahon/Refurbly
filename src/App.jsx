@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { FirestoreWrapper } from './services/firebase-wrapper';
 import { useAuth } from './hooks/useAuth.jsx';
