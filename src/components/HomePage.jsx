@@ -2,7 +2,7 @@ import { useState } from 'react';
 import AuthModal from './AuthModal';
 import DiagnosticPage from './DiagnosticPage';
 
-export default function HomePage({ onStartCalculator }) {
+export default function HomePage({ onStartCalculator, onLoginSuccess }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -63,7 +63,14 @@ export default function HomePage({ onStartCalculator }) {
           </div>
         </div>
       </div>
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={() => setShowAuthModal(false)} />
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+        onSuccess={() => {
+          setShowAuthModal(false);
+          if (onLoginSuccess) onLoginSuccess();
+        }} 
+      />
       {showDiagnostics && <DiagnosticPage onClose={() => setShowDiagnostics(false)} />}
     </>
   );

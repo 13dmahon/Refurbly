@@ -41,8 +41,7 @@ function App() {
     setLoadingQuotes(true);
     try {
       console.log('📋 [iOS-SAFE] Loading ALL quotes for user:', user.uid);
-      const allQuotes = await FirestoreWrapper.getAllDocs('quotes');
-      const userQuotes = allQuotes.filter(q => q.userId === user.uid);
+      const userQuotes = await FirestoreWrapper.getDocsWhere('quotes', 'userId', '==', user.uid);
       console.log(`✅ Found ${userQuotes.length} quotes`);
       userQuotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setSavedQuotes(userQuotes);
@@ -105,7 +104,13 @@ function App() {
   return (
     <>
       {currentView === 'home' && (
-        <HomePage onStartCalculator={() => setCurrentView('calculator')} />
+        <HomePage 
+          onStartCalculator={() => setCurrentView('calculator')}
+          onLoginSuccess={() => {
+            console.log('🎯 Login success - navigating to dashboard');
+            setCurrentView('dashboard');
+          }}
+        />
       )}
 
       {currentView === 'calculator' && (

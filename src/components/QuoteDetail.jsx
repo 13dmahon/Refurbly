@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 export default function QuoteDetail({ quoteId, onClose, onEdit }) {
@@ -14,11 +13,10 @@ export default function QuoteDetail({ quoteId, onClose, onEdit }) {
 
   const loadQuote = async () => {
     try {
-      const docRef = doc(db, 'quotes', quoteId);
-      const docSnap = await getDoc(docRef);
+      const docSnap = await FirestoreWrapper.getDoc('quotes', quoteId);
       
       if (docSnap.exists()) {
-        setQuote({ id: docSnap.id, ...docSnap.data() });
+        setQuote({ id: quoteId, ...docSnap.data() });
       }
     } catch (error) {
       console.error('Error loading quote:', error);

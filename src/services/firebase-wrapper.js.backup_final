@@ -79,6 +79,7 @@ export const FirebaseAuthWrapper = {
       }
     } else {
       console.log('🌐 Setting up WEB auth listener')
+      // FIX: Use async import instead of require
       let unsubscribe = () => {}
       import('firebase/auth').then(({ onAuthStateChanged }) => {
         import('../config/firebase').then(({ auth }) => {
@@ -152,6 +153,7 @@ export const FirestoreWrapper = {
         data: serializedData
       })
       console.log('✅ Native addDoc complete:', result)
+      // Handle different reference formats from native plugin
       const reference = result?.reference
       if (typeof reference === 'string') {
         return { id: reference.split('/').pop(), path: reference }
@@ -186,12 +188,41 @@ export const FirestoreWrapper = {
     }
   },
 
+  getAllDocs: async (collectionName) => {
+    if (isNative) {
+      console.log(`📱 Native getAllDocs: ${collectionName}`);
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+      const result = await FirebaseFirestore.getCollection({
+        reference: collectionName
+      });
+      console.log(`✅ Native got ${result.snapshots?.length || 0} docs`);
+      return (result.snapshots || []).map(snap => ({
+        id: snap.id,
+        ...snap.data
+      }));
+    } else {
+      console.log(`🌐 Web getAllDocs: ${collectionName}`);
+      const { collection, getDocs } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const colRef = collection(db, collectionName);
+      const snapshot = await getDocs(colRef);
+      const docs = [];
+      snapshot.forEach(doc => {
+        docs.push({ id: doc.id, ...doc.data() });
+      });
+      console.log(`✅ Web got ${docs.length} docs`);
+      return docs;
+    }
+  }
+  },
+
   // Query with server-side filtering (respects Firestore security rules)
   getDocsWhere: async (collectionName, field, operator, value) => {
     if (isNative) {
-      console.log(`📱 Native query: ${collectionName} where ${field} ${operator} ${value}`)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      console.log(`📱 Native query: ${collectionName} where ${field} ${operator} ${value}`);
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
       
+      // Native Firestore query format
       const result = await FirebaseFirestore.queryDocuments({
         reference: collectionName,
         compositeFilter: {
@@ -203,25 +234,66 @@ export const FirestoreWrapper = {
             value: value
           }]
         }
-      })
+      });
       
-      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`)
+      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
       return (result.snapshots || []).map(snap => ({
         id: snap.id,
         ...snap.data
-      }))
+      }));
     } else {
-      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`)
-      const { collection, query, where, getDocs } = await import('firebase/firestore')
-      const { db } = await import('../config/firebase')
-      const q = query(collection(db, collectionName), where(field, operator, value))
-      const snapshot = await getDocs(q)
-      const docs = []
+      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const q = query(collection(db, collectionName), where(field, operator, value));
+      const snapshot = await getDocs(q);
+      const docs = [];
       snapshot.forEach(doc => {
-        docs.push({ id: doc.id, ...doc.data() })
-      })
-      console.log(`✅ Web query got ${docs.length} docs`)
-      return docs
+        docs.push({ id: doc.id, ...doc.data() });
+      });
+      console.log(`✅ Web query got ${docs.length} docs`);
+      return docs;
+    }
+  }
+  },
+
+  // Query with server-side filtering (respects Firestore security rules)
+  getDocsWhere: async (collectionName, field, operator, value) => {
+    if (isNative) {
+      console.log(`📱 Native query: ${collectionName} where ${field} ${operator} ${value}`);
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
+      
+      // Native Firestore query format
+      const result = await FirebaseFirestore.queryDocuments({
+        reference: collectionName,
+        compositeFilter: {
+          type: 'AND',
+          queryConstraints: [{
+            type: 'where',
+            fieldPath: field,
+            opStr: operator,
+            value: value
+          }]
+        }
+      });
+      
+      console.log(`✅ Native query got ${result.snapshots?.length || 0} docs`);
+      return (result.snapshots || []).map(snap => ({
+        id: snap.id,
+        ...snap.data
+      }));
+    } else {
+      console.log(`🌐 Web query: ${collectionName} where ${field} ${operator} ${value}`);
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const { db } = await import('../config/firebase');
+      const q = query(collection(db, collectionName), where(field, operator, value));
+      const snapshot = await getDocs(q);
+      const docs = [];
+      snapshot.forEach(doc => {
+        docs.push({ id: doc.id, ...doc.data() });
+      });
+      console.log(`✅ Web query got ${docs.length} docs`);
+      return docs;
     }
   }
 }
