@@ -224,4 +224,20 @@ export const FirestoreWrapper = {
       return docs
     }
   }
+
+  ,
+  deleteDoc: async (collection, docId) => {
+    if (isNative) {
+      console.log(`📱 Native deleteDoc: ${collection}/${docId}`)
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      await FirebaseFirestore.deleteDocument({ reference: `${collection}/${docId}` })
+      console.log('✅ Native deleteDoc complete')
+      return true
+    } else {
+      const { doc, deleteDoc } = await import('firebase/firestore')
+      const { db } = await import('../config/firebase')
+      await deleteDoc(doc(db, collection, docId))
+      return true
+    }
+  }
 }

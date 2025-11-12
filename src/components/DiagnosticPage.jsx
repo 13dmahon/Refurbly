@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { auth, db, functions } from '../config/firebase';
-import { collection, addDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
 
@@ -37,7 +36,7 @@ export default function DiagnosticPage({ onClose }) {
     }
     
     try {
-      const testDoc = await addDoc(collection(db, 'diagnostics'), {
+      const testDoc = await FirestoreWrapper.addDoc('diagnostics', {
         test: true,
         timestamp: new Date().toISOString(),
         platform: Capacitor.getPlatform()

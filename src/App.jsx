@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { deleteDoc, doc } from 'firebase/firestore';
-import { db } from './config/firebase';
 import { FirestoreWrapper } from './services/firebase-wrapper';
 import { useAuth } from './hooks/useAuth.jsx';
 import HomePage from './components/HomePage';
@@ -41,7 +39,10 @@ function App() {
     setLoadingQuotes(true);
     try {
       console.log('📋 [iOS-SAFE] Loading ALL quotes for user:', user.uid);
-      const userQuotes = await FirestoreWrapper.getDocsWhere('quotes', 'userId', '==', user.uid);
+      const userQuotes = await FirestoreWrapper.getDocsWhere(
+        'quotes', 'userId', '==', user.uid,
+        [{ type: 'orderBy', field: 'createdAt', direction: 'desc' }]
+      );
       console.log(`✅ Found ${userQuotes.length} quotes`);
       userQuotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setSavedQuotes(userQuotes);
@@ -56,7 +57,7 @@ function App() {
     if (!window.confirm('Are you sure you want to delete this quote?')) return;
     
     try {
-      await deleteDoc(doc(db, 'quotes', quoteId));
+      await FirestoreWrapper.deleteDoc('quotes', quoteId);
       setSavedQuotes(quotes => quotes.filter(q => q.id !== quoteId));
     } catch (error) {
       console.error('Error deleting quote:', error);

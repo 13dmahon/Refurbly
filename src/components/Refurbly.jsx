@@ -381,7 +381,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           if (onEditComplete) onEditComplete();
         }, 1500);
       } else {
-        quoteData.createdAt = new Date().toISOString();
+        quoteData.createdAt = Date.now();
         await FirestoreWrapper.addDoc('quotes', quoteData);
         setSaveSuccess(true);
         if (onQuoteSaved) onQuoteSaved();
