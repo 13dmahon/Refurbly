@@ -39,17 +39,21 @@ function App() {
     
     setLoadingQuotes(true);
     try {
-      const q = query(
-        collection(db, 'quotes'),
-        where('userId', '==', user.uid)
-      );
-      
-      const querySnapshot = await getDocs(q);
+      console.log('📋 Loading quotes for user:', user.uid);
+      // Fetch all quotes and filter client-side (native Firestore has limited query support)
+      const quotesRef = collection(db, 'quotes');
+      const querySnapshot = await getDocs(quotesRef);
       const quotes = [];
+      
       querySnapshot.forEach((doc) => {
-        quotes.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        // Filter to only this user's quotes
+        if (data.userId === user.uid) {
+          quotes.push({ id: doc.id, ...data });
+        }
       });
       
+      console.log(`✅ Found ${quotes.length} quotes for this user`);
       quotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setSavedQuotes(quotes);
     } catch (error) {
