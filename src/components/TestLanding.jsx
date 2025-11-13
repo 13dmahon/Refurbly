@@ -33,7 +33,7 @@ export default function TestLanding() {
     add(`🔵 Starting diagnostics (platform: ${isNative ? 'iOS-native' : 'web'})`);
     const gotUid = await getUid();
     setUid(gotUid);
-    if (!gotUid) { add('⚠️ No user. Please log in, then tap RUN again.'); return; }
+    if (!gotUid) { add('⚠️ No user. Please log in, then tap RUN AGAIN.'); return; }
     add(`👤 UID: ${gotUid}`);
 
     try {
