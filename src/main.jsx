@@ -1,10 +1,29 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import TestEntry from './TestEntry'
+import App from './App.jsx'
+import SuccessPage from './components/SuccessPage.jsx'
+import { AuthProvider } from './hooks/useAuth.jsx'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <TestEntry />
-  </React.StrictMode>
+// Load error overlay in dev only (no await needed)
+if (import.meta.env.DEV) {
+  import('./setupGlobalErrorOverlay.js')
+}
+
+console.log('🚀 App loading')
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <AuthProvider>
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/success" element={<SuccessPage />} />
+        </Routes>
+      </HashRouter>
+    </AuthProvider>
+  </StrictMode>,
 )
+
+console.log('✅ React rendered')
