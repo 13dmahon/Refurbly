@@ -40,16 +40,16 @@ function App() {
     
     setLoadingQuotes(true);
     try {
-      console.log('📋 [iOS-SAFE] Loading ALL quotes for user:', user.uid);
-      const userQuotes = await FirestoreWrapper.getDocsWhere(
-        'quotes', 'userId', '==', user.uid,
-        [{ type: 'orderBy', field: 'createdAt', direction: 'desc' }]
-      );
+      console.log('📋 Loading quotes for user:', user.uid);
+      
+      // Use the iOS-safe method
+      const userQuotes = await FirestoreWrapper.getQuotesForUser(user.uid);
+      
       console.log(`✅ Found ${userQuotes.length} quotes`);
-      userQuotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setSavedQuotes(userQuotes);
     } catch (error) {
       console.error('❌ Error loading quotes:', error);
+      alert('Failed to load quotes: ' + error.message);
     } finally {
       setLoadingQuotes(false);
     }

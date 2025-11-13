@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 
-const isNative = Capacitor.isNativePlatform()
+const isNative = Capacitor.isNativePlatform?.() ?? false
 
 const serializeForNative = (data) => {
   const result = {}
@@ -16,108 +16,128 @@ const serializeForNative = (data) => {
   return result
 }
 
+// Normalize Firestore timestamps / dates / strings for sorting
+const toMillis = (value) => {
+  if (!value) return 0
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const t = Date.parse(value)
+    return Number.isNaN(t) ? 0 : t
+  }
+  // Firestore Timestamp on web: has toDate()
+  if (typeof value.toDate === 'function') {
+    return value.toDate().getTime()
+  }
+  return 0
+}
+
 export const FirestoreWrapper = {
-  getDoc: async (collection, docId) => {
+  getDoc: async (collectionName, docId) => {
     if (isNative) {
-      console.log(`📱 Native getDoc: ${collection}/${docId}`)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
       const result = await FirebaseFirestore.getDocument({
-        reference: `${collection}/${docId}`
+        reference: `${collectionName}/${docId}`,
       })
       return {
         exists: () => !!result.snapshot,
-        data: () => result.snapshot?.data || null
+        data: () => result.snapshot?.data ?? null,
+        id: result.snapshot?.id ?? docId,
       }
     } else {
       const { doc, getDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      return await getDoc(docRef)
+      const snap = await getDoc(doc(db, collectionName, docId))
+      return snap
     }
   },
 
-  setDoc: async (collection, docId, data, options = {}) => {
+  setDoc: async (collectionName, docId, data, options = {}) => {
     if (isNative) {
-      console.log(`📱 Native setDoc: ${collection}/${docId}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
       await FirebaseFirestore.setDocument({
-        reference: `${collection}/${docId}`,
-        data: serializedData,
-        merge: options.merge || false
+        reference: `${collectionName}/${docId}`,
+        data: serializeForNative(data),
+        merge: options.merge ?? false,
       })
-      console.log('✅ Native setDoc complete')
     } else {
       const { doc, setDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      await setDoc(docRef, data, options)
+      await setDoc(doc(db, collectionName, docId), data, options)
     }
   },
 
-  addDoc: async (collection, data) => {
+  addDoc: async (collectionName, data) => {
     if (isNative) {
-      console.log(`📱 Native addDoc: ${collection}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
       const result = await FirebaseFirestore.addDocument({
-        reference: collection,
-        data: serializedData
+        reference: collectionName,
+        data: serializeForNative(data),
       })
-      console.log('✅ Native addDoc complete, id:', result.reference?.id)
-      return { id: result.reference?.id }
+      // Plugin returns reference with an id
+      return { id: result.reference?.id ?? null }
     } else {
-      const { collection: fbCollection, addDoc } = await import('firebase/firestore')
+      const { collection, addDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const colRef = fbCollection(db, collection)
-      return await addDoc(colRef, data)
+      return await addDoc(collection(db, collectionName), data)
     }
   },
 
-  updateDoc: async (collection, docId, data) => {
+  updateDoc: async (collectionName, docId, data) => {
     if (isNative) {
-      console.log(`📱 Native updateDoc: ${collection}/${docId}`, data)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const serializedData = serializeForNative(data)
       await FirebaseFirestore.updateDocument({
-        reference: `${collection}/${docId}`,
-        data: serializedData
+        reference: `${collectionName}/${docId}`,
+        data: serializeForNative(data),
       })
-      console.log('✅ Native updateDoc complete')
     } else {
       const { doc, updateDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const docRef = doc(db, collection, docId)
-      await updateDoc(docRef, data)
+      await updateDoc(doc(db, collectionName, docId), data)
     }
   },
 
-  // NEW: Get all docs from a collection and filter client-side
-  // This works on iOS since queryDocuments doesn't
-  getAllDocsFiltered: async (collection, filterFn) => {
+  deleteDoc: async (collectionName, docId) => {
     if (isNative) {
-      console.log(`📱 Native getCollection: ${collection}`)
+      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+      await FirebaseFirestore.deleteDocument({
+        reference: `${collectionName}/${docId}`,
+      })
+    } else {
+      const { doc, deleteDoc } = await import('firebase/firestore')
+      const { db } = await import('../config/firebase')
+      await deleteDoc(doc(db, collectionName, docId))
+    }
+  },
+
+  // iOS-SAFE: Get quotes for a specific user
+  getQuotesForUser: async (userId) => {
+    if (isNative) {
+      console.log(`📱 Native: getCollection + client-side filter for ${userId}`)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
       const result = await FirebaseFirestore.getCollection({
-        reference: collection
+        reference: 'quotes',
       })
-      console.log(`✅ Native got ${result.snapshots?.length || 0} docs`)
-      const allDocs = (result.snapshots || []).map(snap => ({
+
+      const allDocs = (result.snapshots ?? []).map((snap) => ({
         id: snap.id,
-        ...snap.data
+        ...snap.data,
       }))
-      // Apply client-side filter
-      return filterFn ? allDocs.filter(filterFn) : allDocs
+
+      return allDocs
+        .filter((doc) => doc.userId === userId)
+        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
     } else {
-      const { collection: fbCollection, getDocs } = await import('firebase/firestore')
+      console.log(`🌐 Web: query with where clause for ${userId}`)
+      const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const colRef = fbCollection(db, collection)
-      const snapshot = await getDocs(colRef)
-      const docs = []
-      snapshot.forEach(doc => {
-        docs.push({ id: doc.id, ...doc.data() })
-      })
-      return filterFn ? docs.filter(filterFn) : docs
+      const q = query(
+        collection(db, 'quotes'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc'),
+      )
+      const snapshot = await getDocs(q)
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
     }
-  }
+  },
 }
