@@ -14,7 +14,8 @@ let persistenceSet = false;
 const webAuth = async () => {
   const { getAuth, setPersistence, browserLocalPersistence } = await import('firebase/auth');
   const { auth } = await import('../config/firebase');
-  if (!persistenceSet) {
+  // Skip persistence on iOS - it causes hangs
+  if (!persistenceSet && !isNative) {
     await setPersistence(auth, browserLocalPersistence);
     persistenceSet = true;
   }
