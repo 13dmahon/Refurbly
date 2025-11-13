@@ -22,10 +22,8 @@ console.log('🔥 Config ready')
 const app = initializeApp(firebaseConfig)
 console.log('✅ Firebase initialized')
 
-export const auth = initializeAuth(app, {
-  persistence: browserLocalPersistence,
-})
-console.log('✅ Auth ready with browser persistence')
+export const auth = initializeAuth(app, {})
+console.log('✅ Auth ready')
 
 export const db = initializeFirestore(app, {
   cacheSizeBytes: CACHE_SIZE_UNLIMITED
