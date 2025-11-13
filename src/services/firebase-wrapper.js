@@ -2,9 +2,10 @@ import { Capacitor } from '@capacitor/core'
 
 const isNative = Capacitor.isNativePlatform?.() ?? false
 
+// ----- Shared helper: serialize data for native Firestore -----
 const serializeForNative = (data) => {
   const result = {}
-  for (const [key, value] of Object.entries(data)) {
+  for (const [key, value] of Object.entries(data ?? {})) {
     if (value instanceof Date) {
       result[key] = value.toISOString()
     } else if (typeof value === 'object' && value !== null) {
@@ -16,7 +17,7 @@ const serializeForNative = (data) => {
   return result
 }
 
-// Normalize Firestore timestamps / dates / strings for sorting
+// ----- Shared helper: normalize dates/timestamps for sorting -----
 const toMillis = (value) => {
   if (!value) return 0
   if (value instanceof Date) return value.getTime()
@@ -25,12 +26,111 @@ const toMillis = (value) => {
     const t = Date.parse(value)
     return Number.isNaN(t) ? 0 : t
   }
-  // Firestore Timestamp on web: has toDate()
-  if (typeof value.toDate === 'function') {
+  // Firestore Timestamp (web) usually has toDate()
+  if (value && typeof value.toDate === 'function') {
     return value.toDate().getTime()
   }
   return 0
 }
+
+// =======================
+//  AUTH WRAPPER
+// =======================
+
+export const FirebaseAuthWrapper = {
+  // Subscribe to auth state
+  onAuthStateChanged: async (callback) => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      const listener = await FirebaseAuthentication.addListener(
+        'authStateChange',
+        (event) => {
+          callback(event.user ?? null)
+        },
+      )
+      return () => {
+        listener.remove()
+      }
+    } else {
+      const { getAuth, onAuthStateChanged } = await import('firebase/auth')
+      await import('../config/firebase') // ensure app is initialized
+      const auth = getAuth()
+      return onAuthStateChanged(auth, callback)
+    }
+  },
+
+  // Sign in / log in
+  signIn: async (email, password) => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      const result = await FirebaseAuthentication.signInWithEmailAndPassword({
+        email,
+        password,
+      })
+      return result.user ?? null
+    } else {
+      const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
+      await import('../config/firebase')
+      const auth = getAuth()
+      const cred = await signInWithEmailAndPassword(auth, email, password)
+      return cred.user
+    }
+  },
+
+  // Sign up / register
+  signUp: async (email, password) => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      const result = await FirebaseAuthentication.createUserWithEmailAndPassword({
+        email,
+        password,
+      })
+      return result.user ?? null
+    } else {
+      const { getAuth, createUserWithEmailAndPassword } = await import('firebase/auth')
+      await import('../config/firebase')
+      const auth = getAuth()
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
+      return cred.user
+    }
+  },
+
+  // Get current user once
+  getCurrentUser: async () => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      const result = await FirebaseAuthentication.getCurrentUser()
+      return result.user ?? null
+    } else {
+      const { getAuth } = await import('firebase/auth')
+      await import('../config/firebase')
+      const auth = getAuth()
+      return auth.currentUser
+    }
+  },
+
+  // Log out
+  signOut: async () => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      await FirebaseAuthentication.signOut()
+    } else {
+      const { getAuth, signOut } = await import('firebase/auth')
+      await import('../config/firebase')
+      const auth = getAuth()
+      await signOut(auth)
+    }
+  },
+
+  // Friendly aliases in case your code uses different names
+  login: async (email, password) => FirebaseAuthWrapper.signIn(email, password),
+  logout: async () => FirebaseAuthWrapper.signOut(),
+  signup: async (email, password) => FirebaseAuthWrapper.signUp(email, password),
+}
+
+// =======================
+//  FIRESTORE WRAPPER
+// =======================
 
 export const FirestoreWrapper = {
   getDoc: async (collectionName, docId) => {
@@ -47,8 +147,7 @@ export const FirestoreWrapper = {
     } else {
       const { doc, getDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
-      const snap = await getDoc(doc(db, collectionName, docId))
-      return snap
+      return await getDoc(doc(db, collectionName, docId))
     }
   },
 
@@ -74,7 +173,6 @@ export const FirestoreWrapper = {
         reference: collectionName,
         data: serializeForNative(data),
       })
-      // Plugin returns reference with an id
       return { id: result.reference?.id ?? null }
     } else {
       const { collection, addDoc } = await import('firebase/firestore')
