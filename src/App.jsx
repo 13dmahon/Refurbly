@@ -6,6 +6,7 @@ import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
+import TestLanding from './components/TestLanding';
 import SimpleTest from './components/SimpleTest';
 
 function App() {
