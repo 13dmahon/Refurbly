@@ -1,15 +1,15 @@
 /**
- * Cross-platform Firebase wrapper for Capacitor (native) + Web SDK (browser)
- * Keeps Web Auth (for Firestore) and Native Auth (Capacitor) in sync.
+ * Cross-platform Firebase wrapper for Capacitor + Web SDK
+ * Web Auth first (for Firestore), mirrors to Native on iOS
+ * ALL Firestore operations use Web SDK (native queries not implemented)
  */
 
 import { Capacitor } from '@capacitor/core';
 
 const isNative = Capacitor.isNativePlatform();
-
 const serializeForNative = (data) => JSON.parse(JSON.stringify(data));
 
-// ---- lazy imports to keep bundle lean ----
+// ---- Web Auth (with persistence) ----
 let persistenceSet = false;
 const webAuth = async () => {
   const { getAuth, setPersistence, browserLocalPersistence } = await import('firebase/auth');
@@ -21,22 +21,19 @@ const webAuth = async () => {
   return auth;
 };
 
+// ---- Native Auth ----
 const nativeAuth = async () => {
   const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
   return FirebaseAuthentication;
 };
 
-const nativeFirestore = async () => {
-  const { FirebaseFirestore } = await import('@capacitor-firebase/firestore');
-  return FirebaseFirestore;
-};
-
+// ---- Web Firestore (always) ----
 const webFirestore = async () => {
   const { db } = await import('../config/firebase');
   return { db };
 };
 
-// ---- small helpers ----
+// ---- Helpers ----
 const getNativeUser = async () => {
   if (!isNative) return null;
   try {
@@ -47,78 +44,65 @@ const getNativeUser = async () => {
     return null;
   }
 };
+
 const sameUid = (a, b) => !!a && !!b && a === b;
-
-// ---- ready-gate for Web Auth (prevents early Firestore calls) ----
-let readyResolved = false;
-const readyPromise = (async () => {
-  const { onAuthStateChanged } = await import('firebase/auth');
-  const auth = await webAuth();
-  return new Promise((resolve) => {
-    const unsub = onAuthStateChanged(auth, () => {
-      if (!readyResolved) {
-        readyResolved = true;
-        resolve();
-      }
-      unsub();
-    });
-    if (auth.currentUser || auth.currentUser === null) {
-      readyResolved = true;
-      resolve();
-      unsub();
-    }
-  });
-})();
-
-export const authReady = async () => {
-  await readyPromise;
-};
 
 // ---- AUTH WRAPPER ----
 export const FirebaseAuthWrapper = {
   signIn: async (email, password) => {
+    console.log('🔐 [1/2] Signing in to Web Auth...');
     const { signInWithEmailAndPassword } = await import('firebase/auth');
     const auth = await webAuth();
-
     const webCred = await signInWithEmailAndPassword(auth, email, password);
     const webUid = webCred.user?.uid;
+    console.log('✅ [1/2] Web Auth signed in:', webUid);
 
     if (isNative) {
+      console.log('🔐 [2/2] Mirroring to Native Auth...');
       try {
         const na = await nativeAuth();
         const nu = await getNativeUser();
         if (!sameUid(webUid, nu?.uid)) {
           await na.signInWithEmailAndPassword({ email, password });
+          console.log('✅ [2/2] Native Auth signed in');
+        } else {
+          console.log('ℹ️ [2/2] Native Auth already signed in');
         }
       } catch (e) {
-        console.warn('[auth] native mirror sign-in failed:', e);
+        console.warn('[auth] Native mirror failed (non-critical):', e);
       }
     }
     return { user: webCred.user };
   },
 
   signUp: async (email, password) => {
+    console.log('🔐 [1/2] Signing up with Web Auth...');
     const { createUserWithEmailAndPassword } = await import('firebase/auth');
     const auth = await webAuth();
-
     const webCred = await createUserWithEmailAndPassword(auth, email, password);
     const webUid = webCred.user?.uid;
+    console.log('✅ [1/2] Web Auth created:', webUid);
 
     if (isNative) {
+      console.log('🔐 [2/2] Mirroring to Native Auth...');
       try {
         const na = await nativeAuth();
         const nu = await getNativeUser();
         if (!sameUid(webUid, nu?.uid)) {
           await na.createUserWithEmailAndPassword({ email, password });
+          console.log('✅ [2/2] Native Auth created');
+        } else {
+          console.log('ℹ️ [2/2] Native Auth already exists');
         }
       } catch (e) {
-        console.warn('[auth] native mirror sign-up failed:', e);
+        console.warn('[auth] Native mirror failed (non-critical):', e);
       }
     }
     return { user: webCred.user };
   },
 
   signOut: async () => {
+    console.log('🔐 Signing out...');
     const { signOut } = await import('firebase/auth');
     const auth = await webAuth();
     await signOut(auth);
@@ -127,9 +111,12 @@ export const FirebaseAuthWrapper = {
       try {
         const na = await nativeAuth();
         await na.signOut();
+        console.log('✅ Signed out from both Web and Native');
       } catch (e) {
-        console.warn('[auth] native sign-out warning:', e);
+        console.warn('[auth] Native sign-out warning:', e);
       }
+    } else {
+      console.log('✅ Signed out from Web');
     }
   },
 
@@ -138,16 +125,19 @@ export const FirebaseAuthWrapper = {
     (async () => {
       const { onAuthStateChanged } = await import('firebase/auth');
       const auth = await webAuth();
+      console.log('🔐 Setting up auth listener...');
       unsub = onAuthStateChanged(auth, async (webUser) => {
+        console.log('🔐 Auth state changed:', webUser?.uid || 'null');
         if (isNative && !webUser) {
           try {
             const nu = await getNativeUser();
             if (nu) {
               const na = await nativeAuth();
               await na.signOut();
+              console.log('🧹 Cleaned up native session');
             }
           } catch (e) {
-            console.warn('[auth] native clean-up on web logout:', e);
+            console.warn('[auth] Native cleanup warning:', e);
           }
         }
         callback(webUser || null);
@@ -157,96 +147,55 @@ export const FirebaseAuthWrapper = {
   },
 };
 
-// ---- FIRESTORE WRAPPER ----
+// ---- FIRESTORE WRAPPER (Web SDK only) ----
 export const FirestoreWrapper = {
   getDoc: async (collection, docId) => {
-    await authReady();
-    if (isNative) {
-      const ff = await nativeFirestore();
-      const result = await ff.getDocument({ reference: `${collection}/${docId}` });
-      return {
-        exists: () => result?.snapshot?.exists,
-        data: () => result?.snapshot?.data,
-        id: docId,
-      };
-    } else {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await webFirestore();
-      const ref = doc(db, collection, docId);
-      return await getDoc(ref);
-    }
+    console.log(`📄 getDoc: ${collection}/${docId}`);
+    const { doc, getDoc } = await import('firebase/firestore');
+    const { db } = await webFirestore();
+    const ref = doc(db, collection, docId);
+    return await getDoc(ref);
   },
 
   setDoc: async (collection, docId, data) => {
-    await authReady();
-    if (isNative) {
-      const ff = await nativeFirestore();
-      await ff.setDocument({
-        reference: `${collection}/${docId}`,
-        data: serializeForNative(data),
-      });
-    } else {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await webFirestore();
-      await setDoc(doc(db, collection, docId), data);
-    }
+    console.log(`💾 setDoc: ${collection}/${docId}`);
+    const { doc, setDoc } = await import('firebase/firestore');
+    const { db } = await webFirestore();
+    await setDoc(doc(db, collection, docId), data);
   },
 
   addDoc: async (collection, data) => {
-    await authReady();
-    if (isNative) {
-      const ff = await nativeFirestore();
-      const res = await ff.addDocument({
-        reference: collection,
-        data: serializeForNative(data),
-      });
-      const ref = res?.reference;
-      if (typeof ref === 'string') return { id: ref.split('/').pop(), path: ref };
-      return res;
-    } else {
-      const { collection: coll, addDoc } = await import('firebase/firestore');
-      const { db } = await webFirestore();
-      const ref = await addDoc(coll(db, collection), data);
-      return { id: ref.id };
-    }
+    console.log(`➕ addDoc: ${collection}`);
+    const { collection: coll, addDoc } = await import('firebase/firestore');
+    const { db } = await webFirestore();
+    const ref = await addDoc(coll(db, collection), data);
+    console.log(`✅ Created doc: ${ref.id}`);
+    return { id: ref.id };
   },
 
   updateDoc: async (collection, docId, data) => {
-    await authReady();
-    if (isNative) {
-      const ff = await nativeFirestore();
-      await ff.updateDocument({
-        reference: `${collection}/${docId}`,
-        data: serializeForNative(data),
-      });
-    } else {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await webFirestore();
-      await updateDoc(doc(db, collection, docId), data);
-    }
+    console.log(`📝 updateDoc: ${collection}/${docId}`);
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const { db } = await webFirestore();
+    await updateDoc(doc(db, collection, docId), data);
   },
 
   deleteDoc: async (collection, docId) => {
-    await authReady();
-    if (isNative) {
-      const ff = await nativeFirestore();
-      await ff.deleteDocument({ reference: `${collection}/${docId}` });
-    } else {
-      const { doc, deleteDoc } = await import('firebase/firestore');
-      const { db } = await webFirestore();
-      await deleteDoc(doc(db, collection, docId));
-    }
+    console.log(`🗑️ deleteDoc: ${collection}/${docId}`);
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const { db } = await webFirestore();
+    await deleteDoc(doc(db, collection, docId));
   },
 
   getDocsWhere: async (collectionName, field, operator, value) => {
-    await authReady();
-    // Always use web SDK for queries (native queryDocuments not implemented on iOS)
+    console.log(`🔍 getDocsWhere: ${collectionName} where ${field} ${operator} ${value}`);
     const { collection, query, where, getDocs } = await import('firebase/firestore');
     const { db } = await webFirestore();
     const q = query(collection(db, collectionName), where(field, operator, value));
     const snapshot = await getDocs(q);
     const docs = [];
     snapshot.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    console.log(`✅ Found ${docs.length} docs`);
     return docs;
   },
 };

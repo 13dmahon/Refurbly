@@ -7,60 +7,48 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log('🔐 [1/3] Setting up Firebase Auth listener...');
+    console.log('🔐 [1/2] Setting up auth listener...');
     
-    const timeoutId = setTimeout(() => {
-      console.error('⏰ TIMEOUT: Firebase Auth did not respond in 30 seconds');
-      setError('Firebase connection timeout. Please check your internet connection.');
-      setLoading(false);
-    }, 30000);
-
-    try {
-      const unsubscribe = FirebaseAuthWrapper.onAuthStateChanged(async (firebaseUser) => {
-        clearTimeout(timeoutId);
-        console.log('🔐 [2/3] Auth state changed:', firebaseUser?.email || 'no user');
+    const unsubscribePromise = FirebaseAuthWrapper.onAuthStateChanged(async (firebaseUser) => {
+      console.log('🔐 [2/2] Auth state:', firebaseUser?.email || 'no user');
+      
+      if (firebaseUser) {
+        setUser(firebaseUser);
         
-        if (firebaseUser) {
-          setUser(firebaseUser);
+        try {
+          const userDoc = await FirestoreWrapper.getDoc('users', firebaseUser.uid);
           
-          try {
-            const userDoc = await FirestoreWrapper.getDoc('users', firebaseUser.uid);
-            
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              setIsPremium(userData.isPremium === true);
-              console.log('✅ User is premium:', userData.isPremium);
-            } else {
-              console.log('⚠️ No user document found');
-              setIsPremium(false);
-            }
-          } catch (error) {
-            console.error('❌ Error fetching user data:', error);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setIsPremium(userData.isPremium === true);
+            console.log('✅ Premium status:', userData.isPremium);
+          } else {
+            console.log('⚠️ No user document found');
             setIsPremium(false);
           }
-        } else {
-          console.log('👤 No user logged in');
-          setUser(null);
+        } catch (error) {
+          console.error('❌ Error fetching user data:', error);
           setIsPremium(false);
         }
-        
-        setLoading(false);
-        console.log('🔐 [3/3] Auth initialization complete');
-      });
-
-      return () => {
-        clearTimeout(timeoutId);
-        if (unsubscribe) unsubscribe();
-      };
-    } catch (error) {
-      console.error('❌ FATAL: Failed to setup auth listener:', error);
-      setError('Failed to initialize authentication: ' + error.message);
+      } else {
+        console.log('👤 No user logged in');
+        setUser(null);
+        setIsPremium(false);
+      }
+      
       setLoading(false);
-      clearTimeout(timeoutId);
-    }
+      console.log('✅ Auth complete');
+    });
+
+    return () => {
+      if (unsubscribePromise && typeof unsubscribePromise.then === 'function') {
+        unsubscribePromise.then(unsub => unsub && unsub());
+      } else if (typeof unsubscribePromise === 'function') {
+        unsubscribePromise();
+      }
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -89,45 +77,10 @@ export function AuthProvider({ children }) {
     user,
     isPremium,
     loading,
-    error,
     login,
     signup,
     logout,
   };
-
-  if (error) {
-    return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'white',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '20px',
-        textAlign: 'center'
-      }}>
-        <div style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️</div>
-        <h2 style={{ fontSize: '24px', marginBottom: '10px' }}>Connection Error</h2>
-        <p style={{ color: '#666', marginBottom: '20px' }}>{error}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#3B82F6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            cursor: 'pointer'
-          }}
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
