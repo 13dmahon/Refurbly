@@ -17,6 +17,7 @@
     "@capacitor-firebase/app": "^7.4.0",
     "@capacitor-firebase/authentication": "^7.4.0",
     "@capacitor-firebase/firestore": "^7.4.0",
+    "@capacitor-firebase/functions": "^7.4.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/browser": "^7.0.2",
     "@capacitor/cli": "^7.4.4",
