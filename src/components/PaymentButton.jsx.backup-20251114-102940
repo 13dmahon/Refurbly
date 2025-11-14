@@ -12,12 +12,12 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
 
   const handlePayment = async () => {
     console.log('=== PAYMENT STARTED ===');
-    console.log('Platform:', Capacitor.getPlatform());
-    console.log('🔐 Using useAuth user:', user);
+    const platform = Capacitor.getPlatform();
+    console.log('Platform:', platform);
 
     if (!user) {
       setError('Please sign in first');
-      console.error('❌ No user in useAuth context');
+      console.error('❌ No user from useAuth()');
       return;
     }
 
@@ -25,62 +25,69 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
     setError('');
 
     try {
-      console.log('📡 Calling createCheckoutSession with quoteData:', {
-        id: quoteData?.id,
-        userId: quoteData?.userId,
+      console.log('🔐 Using useAuth user:', {
+        uid: user.uid,
+        email: user.email,
       });
 
-      const createCheckout = httpsCallable(functions, 'createCheckoutSession');
-      const result = await createCheckout({
-        quoteData,
-        user: {
-          uid: user.uid,
-          email: user.email,
-        },
-      });
-
-      const data = result.data || {};
-      console.log('✅ Payment function result:', data);
-
-      const url = data.url;
-      if (!url) {
-        throw new Error('No checkout URL returned from server');
+      // Refresh ID token if available (web SDK user has this)
+      if (typeof user.getIdToken === 'function') {
+        console.log('🔐 Refreshing ID token via user.getIdToken(true)...');
+        await user.getIdToken(true);
+      } else {
+        console.warn('⚠️ user.getIdToken is not a function – skipping token refresh');
       }
 
-      console.log('🌐 Got checkout URL:', url);
+      console.log('📡 Calling createCheckoutSession with quoteData:', quoteData);
+      const createCheckout = httpsCallable(functions, 'createCheckoutSession');
+      const result = await createCheckout({ quoteData });
+
+      console.log('✅ Callable result:', result);
+
+      const url = result?.data?.url || result?.data?.checkoutUrl || result?.data;
+      console.log('Got checkout URL:', url);
+
+      if (!url || typeof url !== 'string') {
+        throw new Error('No checkout URL returned from backend');
+      }
 
       if (Capacitor.isNativePlatform()) {
-        console.log('📲 Opening in external browser (Safari)…');
-        await Browser.open({ url });
-        setLoading(false);
+        console.log('📱 Native platform detected – trying Capacitor Browser...');
+        try {
+          await Browser.open({ url });
+          console.log('✅ Browser.open resolved');
+        } catch (browserErr) {
+          console.error('❌ Capacitor Browser.open failed, falling back:', browserErr);
+          try {
+            console.log('🌐 Fallback: window.open(url, "_blank")');
+            window.open(url, '_blank');
+          } catch (fallbackErr) {
+            console.error('❌ window.open fallback failed:', fallbackErr);
+            throw fallbackErr;
+          }
+        } finally {
+          setLoading(false);
+        }
       } else {
-        console.log('🖥 Redirecting in web…');
+        console.log('🖥️ Web platform – redirecting...');
         window.location.href = url;
       }
+
     } catch (err) {
       console.error('❌ Payment error RAW:', err);
+
       try {
         console.error('❌ Payment error JSON:', JSON.stringify(err, null, 2));
-      } catch (_) {
-        // ignore
+      } catch (stringifyErr) {
+        console.error('❌ Could not stringify error:', stringifyErr);
       }
 
-      let message = 'Payment failed. Please try again.';
       if (err && typeof err === 'object') {
-        const code = err.code || err?.details?.code;
-        const msg =
-          err.message || err?.details?.message || err?.details || err?.errorMessage;
-        console.error('❌ Payment error message:', msg);
-        console.error('❌ Payment error code:', code);
-        if (code === 'functions/unauthenticated') {
-          message =
-            'Payment failed because authentication was not sent. Please sign out and sign back in, then try again.';
-        } else if (msg) {
-          message = msg;
-        }
+        if (err.message) console.error('❌ Payment error message:', err.message);
+        if (err.code) console.error('❌ Payment error code:', err.code);
       }
 
-      setError(message);
+      setError(err?.message || 'Payment failed. Please try again.');
       setLoading(false);
     }
   };

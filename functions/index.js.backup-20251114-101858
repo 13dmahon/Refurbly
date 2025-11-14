@@ -7,40 +7,22 @@ admin.initializeApp();
 setGlobalOptions({ region: 'us-central1' });
 
 exports.createCheckoutSession = onCall(async (request) => {
-  console.log('➡️ createCheckoutSession called with data:', request.data);
-  console.log('➡️ Auth context:', request.auth ? { uid: request.auth.uid, email: request.auth.token?.email } : null);
-
-  const { quoteData, user } = request.data || {};
-
-  // Try to work out who the user is, from several sources
-  const userId =
-    (request.auth && request.auth.uid) ||
-    (user && user.uid) ||
-    (quoteData && quoteData.userId) ||
-    null;
-
-  const email =
-    (request.auth && request.auth.token && request.auth.token.email) ||
-    (user && user.email) ||
-    null;
-
-  if (!userId) {
-    console.error('❌ No userId found in auth or data');
-    throw new HttpsError(
-      'failed-precondition',
-      'Missing userId for checkout session. Please sign out and sign back in.'
-    );
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
 
-  try {
-    console.log('✅ Creating checkout session for user:', userId, 'email:', email);
+  const userId = request.auth.uid;
+  const { quoteData } = request.data;
 
+  try {
+    console.log('Creating checkout session for user:', userId);
+    
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       success_url: `https://ascension-app-e3d00.web.app/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `https://ascension-app-e3d00.web.app/`,
-      customer_email: email || undefined,
+      customer_email: request.auth.token.email,
       client_reference_id: userId,
       line_items: [
         {
@@ -48,8 +30,7 @@ exports.createCheckoutSession = onCall(async (request) => {
             currency: 'gbp',
             product_data: {
               name: 'Refurbly Premium - Lifetime Access',
-              description:
-                'Unlimited detailed breakdowns, contractor contacts, and PDF exports',
+              description: 'Unlimited detailed breakdowns, contractor contacts, and PDF exports',
             },
             unit_amount: 999,
           },
@@ -58,19 +39,19 @@ exports.createCheckoutSession = onCall(async (request) => {
       ],
       metadata: {
         userId: userId,
-        quoteId: (quoteData && quoteData.id) || 'unknown',
+        quoteId: quoteData.id || 'unknown',
       },
     });
 
-    console.log('✅ Stripe session created:', session.id);
-
-    return {
+    console.log('Session created:', session.id);
+    return { 
       sessionId: session.id,
-      url: session.url,
+      url: session.url
     };
+    
   } catch (error) {
-    console.error('❌ Stripe error while creating session:', error);
-    throw new HttpsError('internal', error.message || 'Stripe error');
+    console.error('Stripe error:', error);
+    throw new HttpsError('internal', error.message);
   }
 });
 
@@ -93,19 +74,12 @@ exports.stripeWebhook = onRequest(async (req, res) => {
     const session = event.data.object;
     const userId = session.client_reference_id;
 
-    await admin
-      .firestore()
-      .collection('users')
-      .doc(userId)
-      .set(
-        {
-          isPremium: true,
-          upgradedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+    await admin.firestore().collection('users').doc(userId).set({
+      isPremium: true,
+      upgradedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
 
-    console.log(`🎉 User ${userId} upgraded to premium`);
+    console.log(`User ${userId} upgraded to premium`);
   }
 
   res.json({ received: true });
