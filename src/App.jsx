@@ -147,7 +147,6 @@ function App() {
                   onClick={() => setCurrentView('test')}
                   className="px-4 py-2 bg-red-500 text-white font-bold hover:bg-red-600 rounded-lg transition"
                 >
-                  🧪 TEST
                 </button>
                 <button
                   onClick={() => {
