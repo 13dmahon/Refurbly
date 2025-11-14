@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import NewQuote from './pages/NewQuote';
-import AuthPage from './pages/AuthPage';
+import AuthPage from './pages/AuthPage.jsx';
 import Dashboard from './pages/Dashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { createQuote } from './services/quotes';
 import { startCheckout } from './services/payments';
 
 function AppShell() {
-  const { user, initialising, signOut } = useAuth();
+  const { user, initialising, isPremium, signOut } = useAuth();
   const [view, setView] = useState('quote'); // 'quote' | 'dashboard' | 'auth'
   const [quoteResult, setQuoteResult] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -25,6 +25,13 @@ function AppShell() {
       return;
     }
     if (!quoteResult) return;
+
+    if (!isPremium) {
+      setSaveMessage(
+        'Saving quotes is a Premium feature. Tap "Go Premium" to upgrade.'
+      );
+      return;
+    }
 
     try {
       setSaving(true);
@@ -53,7 +60,10 @@ function AppShell() {
 
   const headerSubtitle = (() => {
     if (initialising) return 'Checking sign-in status…';
-    if (user) return `Signed in as ${user.email || user.uid}`;
+    if (user) {
+      const status = isPremium ? 'Premium' : 'Free';
+      return `${status} · ${user.email || user.uid}`;
+    }
     return 'Not signed in';
   })();
 
@@ -158,16 +168,16 @@ function AppShell() {
 
         {view === 'dashboard' && (
           <Dashboard
+            isPremium={isPremium}
             onSelectQuote={(q) => {
               setQuoteResult(q);
               setView('quote');
             }}
+            onUpgrade={handleGoPremium}
           />
         )}
 
-        {view === 'auth' && (
-          <AuthPage onDone={() => setView('quote')} />
-        )}
+        {view === 'auth' && <AuthPage onDone={() => setView('quote')} />}
       </main>
     </div>
   );

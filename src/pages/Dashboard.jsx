@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { loadQuotes, deleteQuote } from '../services/quotes';
 
-function Dashboard({ onSelectQuote }) {
+function Dashboard({ onSelectQuote, onUpgrade, isPremium }) {
   const { user } = useAuth();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const refresh = async () => {
-    if (!user) return;
+    if (!user || !isPremium) return;
     setLoading(true);
     setError('');
     try {
@@ -26,13 +26,7 @@ function Dashboard({ onSelectQuote }) {
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
-
-  const handleDelete = async (quoteId) => {
-    if (!window.confirm('Delete this quote?')) return;
-    await deleteQuote(quoteId);
-    await refresh();
-  };
+  }, [user?.uid, isPremium]);
 
   if (!user) {
     return (
@@ -40,6 +34,24 @@ function Dashboard({ onSelectQuote }) {
         <p className="text-sm">
           Please log in to see your saved quotes.
         </p>
+      </section>
+    );
+  }
+
+  if (!isPremium) {
+    return (
+      <section className="bg-white rounded-lg shadow p-4">
+        <h2 className="text-lg font-semibold mb-2">Premium feature</h2>
+        <p className="text-sm mb-3">
+          Viewing and managing saved quotes is a Premium feature.
+        </p>
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="inline-flex items-center px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium"
+        >
+          Go Premium (Stripe)
+        </button>
       </section>
     );
   }
@@ -90,7 +102,11 @@ function Dashboard({ onSelectQuote }) {
               <button
                 type="button"
                 className="text-xs text-red-600 underline"
-                onClick={() => handleDelete(q.id)}
+                onClick={async () => {
+                  if (!window.confirm('Delete this quote?')) return;
+                  await deleteQuote(q.id);
+                  await refresh();
+                }}
               >
                 Delete
               </button>
