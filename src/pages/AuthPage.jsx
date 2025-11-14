@@ -7,20 +7,24 @@ function AuthPage({ onDone }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     try {
+      setSubmitting(true);
       if (mode === 'login') {
         await signIn(email, password);
       } else {
         await signUp(email, password);
       }
-      onDone?.(); // e.g. go back to main view
+      setSubmitting(false);
+      onDone?.(); // go back to main view
     } catch (err) {
       console.error(err);
+      setSubmitting(false);
       setError(err.message || 'Something went wrong');
     }
   };
@@ -39,6 +43,8 @@ function AuthPage({ onDone }) {
             className="border rounded px-3 py-2 w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
             required
           />
         </div>
@@ -61,9 +67,16 @@ function AuthPage({ onDone }) {
 
         <button
           type="submit"
-          className="inline-flex items-center px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium"
+          disabled={submitting}
+          className="inline-flex items-center px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium disabled:opacity-60"
         >
-          {mode === 'login' ? 'Log in' : 'Sign up'}
+          {submitting
+            ? mode === 'login'
+              ? 'Logging in…'
+              : 'Creating account…'
+            : mode === 'login'
+              ? 'Log in'
+              : 'Sign up'}
         </button>
       </form>
 

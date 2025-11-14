@@ -32,7 +32,6 @@ export function AuthProvider({ children }) {
     const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
 
-      // Clean up old profile listener
       if (unsubProfile) {
         unsubProfile();
         unsubProfile = undefined;
@@ -44,7 +43,6 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Listen to users/{uid} for isPremium etc.
       setProfileLoading(true);
       const ref = doc(db, 'users', firebaseUser.uid);
 
@@ -52,7 +50,6 @@ export function AuthProvider({ children }) {
         ref,
         async (snap) => {
           if (!snap.exists()) {
-            // Create a basic profile doc if missing
             try {
               await setDoc(
                 ref,
