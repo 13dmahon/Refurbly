@@ -67,13 +67,12 @@ export const FirebaseAuthWrapper = {
         email,
         password,
       })
-      return result.user ?? null
+      return { user: result.user ?? null }
     } else {
       const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
       await import('../config/firebase')
       const auth = getAuth()
-      const cred = await signInWithEmailAndPassword(auth, email, password)
-      return cred.user
+      return await signInWithEmailAndPassword(auth, email, password)
     }
   },
 
@@ -85,13 +84,12 @@ export const FirebaseAuthWrapper = {
         email,
         password,
       })
-      return result.user ?? null
+      return { user: result.user ?? null }
     } else {
       const { getAuth, createUserWithEmailAndPassword } = await import('firebase/auth')
       await import('../config/firebase')
       const auth = getAuth()
-      const cred = await createUserWithEmailAndPassword(auth, email, password)
-      return cred.user
+      return await createUserWithEmailAndPassword(auth, email, password)
     }
   },
 
@@ -106,6 +104,20 @@ export const FirebaseAuthWrapper = {
       await import('../config/firebase')
       const auth = getAuth()
       return auth.currentUser
+    }
+  },
+
+  getIdToken: async (forceRefresh = false) => {
+    if (isNative) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication')
+      const result = await FirebaseAuthentication.getIdToken({ forceRefresh })
+      return result?.token ?? null
+    } else {
+      const { getAuth } = await import('firebase/auth')
+      await import('../config/firebase')
+      const auth = getAuth()
+      if (!auth.currentUser) return null
+      return await auth.currentUser.getIdToken(forceRefresh)
     }
   },
 
@@ -211,19 +223,30 @@ export const FirestoreWrapper = {
   // iOS-SAFE: Get quotes for a specific user
   getQuotesForUser: async (userId) => {
     if (isNative) {
-      console.log(`📱 Native: getCollection + client-side filter for ${userId}`)
+      console.log(`📱 Native: querying quotes for ${userId}`)
       const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
       const result = await FirebaseFirestore.getCollection({
         reference: 'quotes',
+        queryConstraints: [
+          {
+            type: 'where',
+            fieldPath: 'userId',
+            opStr: '==',
+            value: userId,
+          },
+          {
+            type: 'orderBy',
+            fieldPath: 'createdAt',
+            directionStr: 'desc',
+          },
+        ],
       })
 
-      const allDocs = (result.snapshots ?? []).map((snap) => ({
-        id: snap.id,
-        ...snap.data,
-      }))
-
-      return allDocs
-        .filter((doc) => doc.userId === userId)
+      return (result.snapshots ?? [])
+        .map((snap) => ({
+          id: snap.id,
+          ...snap.data,
+        }))
         .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
     } else {
       console.log(`🌐 Web: query with where clause for ${userId}`)

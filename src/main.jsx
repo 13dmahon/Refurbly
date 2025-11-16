@@ -6,11 +6,6 @@ import App from './App.jsx'
 import SuccessPage from './components/SuccessPage.jsx'
 import { AuthProvider } from './hooks/useAuth.jsx'
 
-// Load error overlay in dev only (no await needed)
-if (import.meta.env.DEV) {
-  import('./setupGlobalErrorOverlay.js')
-}
-
 console.log('🚀 App loading')
 
 createRoot(document.getElementById('root')).render(
