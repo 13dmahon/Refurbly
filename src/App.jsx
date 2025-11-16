@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FirestoreWrapper } from './services/firebase-wrapper';
 import { useAuth } from './hooks/useAuth.jsx';
 import HomePage from './components/HomePage';
@@ -16,6 +16,7 @@ function App() {
   const [editingQuote, setEditingQuote] = useState(null);
 
   const maxQuotes = isPremium ? 10 : 5;
+  const headerSafeAreaStyle = { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' };
 
   useEffect(() => {
     console.log('🔍 isPremium:', isPremium);
@@ -28,14 +29,25 @@ function App() {
   }, [user, currentView]);
 
   useEffect(() => {
-    if (currentView === 'dashboard' && user) {
-      loadSavedQuotes();
-    }
-  }, [currentView, user]);
+    if (typeof window === 'undefined') return;
 
-    const loadSavedQuotes = async () => {
+    const handleCheckoutFinished = () => {
+      if (user) {
+        setEditingQuote(null);
+        setCurrentView('dashboard');
+        loadSavedQuotes();
+      }
+    };
+
+    window.addEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
+    return () => {
+      window.removeEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
+    };
+  }, [user, loadSavedQuotes]);
+
+  const loadSavedQuotes = useCallback(async () => {
     if (!user) return;
-    
+
     setLoadingQuotes(true);
     try {
       console.log('📋 Loading quotes for user:', user.uid);
@@ -51,7 +63,13 @@ function App() {
     } finally {
       setLoadingQuotes(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (currentView === 'dashboard' && user) {
+      loadSavedQuotes();
+    }
+  }, [currentView, user, loadSavedQuotes]);
 
   const handleDeleteQuote = async (quoteId) => {
     if (!window.confirm('Are you sure you want to delete this quote?')) return;
@@ -116,7 +134,10 @@ function App() {
 
       {currentView === 'calculator' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div
+            className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+            style={headerSafeAreaStyle}
+          >
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -174,7 +195,10 @@ function App() {
 
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div
+            className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+            style={headerSafeAreaStyle}
+          >
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Saved Quotes</h1>
               <p className="text-sm text-gray-600">

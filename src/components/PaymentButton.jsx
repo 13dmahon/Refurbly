@@ -90,7 +90,31 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
 
       if (isNativePlatform) {
         console.log('📲 Opening in external browser (Safari)…');
-        await Browser.open({ url });
+        let dispatched = false;
+        const notifyCheckoutFinished = () => {
+          if (typeof window !== 'undefined' && !dispatched) {
+            dispatched = true;
+            window.dispatchEvent(new CustomEvent('refurbly:checkoutFinished'));
+          }
+        };
+
+        let finishedListener;
+        if (Browser.addListener) {
+          try {
+            finishedListener = await Browser.addListener('browserFinished', () => {
+              notifyCheckoutFinished();
+            });
+          } catch (listenerError) {
+            console.warn('Unable to attach browserFinished listener:', listenerError);
+          }
+        }
+
+        try {
+          await Browser.open({ url });
+        } finally {
+          await finishedListener?.remove?.();
+          notifyCheckoutFinished();
+        }
         setLoading(false);
       } else {
         console.log('🖥 Redirecting in web…');
