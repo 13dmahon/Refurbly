@@ -4,6 +4,48 @@ import { functions } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { FirebaseAuthWrapper } from '../services/firebase-wrapper';
+
+const isNativePlatform = Capacitor.isNativePlatform?.() ?? false;
+
+const callCheckoutSession = async (payload) => {
+  if (isNativePlatform) {
+    const idToken = await FirebaseAuthWrapper.getIdToken(true);
+    if (!idToken) {
+      throw new Error('Unable to authenticate payment. Please sign in again.');
+    }
+
+    const response = await fetch(
+      'https://us-central1-ascension-app-e3d00.cloudfunctions.net/createCheckoutSession',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ data: payload }),
+      }
+    );
+
+    let responseBody = {};
+    try {
+      responseBody = await response.json();
+    } catch (_) {
+      // Ignore JSON parse errors – handled below
+    }
+
+    if (!response.ok || responseBody.error) {
+      const message = responseBody?.error?.message || responseBody?.error || 'Stripe checkout failed';
+      throw new Error(message);
+    }
+
+    return responseBody.result ?? responseBody;
+  }
+
+  const createCheckout = httpsCallable(functions, 'createCheckoutSession');
+  const result = await createCheckout(payload);
+  return result.data || result.result || {};
+};
 
 export default function PaymentButton({ quoteData, compact = false, inCard = false }) {
   const [loading, setLoading] = useState(false);
@@ -30,16 +72,13 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
         userId: quoteData?.userId,
       });
 
-      const createCheckout = httpsCallable(functions, 'createCheckoutSession');
-      const result = await createCheckout({
+      const data = await callCheckoutSession({
         quoteData,
         user: {
           uid: user.uid,
           email: user.email,
         },
       });
-
-      const data = result.data || {};
       console.log('✅ Payment function result:', data);
 
       const url = data.url;
@@ -49,9 +88,33 @@ export default function PaymentButton({ quoteData, compact = false, inCard = fal
 
       console.log('🌐 Got checkout URL:', url);
 
-      if (Capacitor.isNativePlatform()) {
+      if (isNativePlatform) {
         console.log('📲 Opening in external browser (Safari)…');
-        await Browser.open({ url });
+        let dispatched = false;
+        const notifyCheckoutFinished = () => {
+          if (typeof window !== 'undefined' && !dispatched) {
+            dispatched = true;
+            window.dispatchEvent(new CustomEvent('refurbly:checkoutFinished'));
+          }
+        };
+
+        let finishedListener;
+        if (Browser.addListener) {
+          try {
+            finishedListener = await Browser.addListener('browserFinished', () => {
+              notifyCheckoutFinished();
+            });
+          } catch (listenerError) {
+            console.warn('Unable to attach browserFinished listener:', listenerError);
+          }
+        }
+
+        try {
+          await Browser.open({ url });
+        } finally {
+          await finishedListener?.remove?.();
+          notifyCheckoutFinished();
+        }
         setLoading(false);
       } else {
         console.log('🖥 Redirecting in web…');
