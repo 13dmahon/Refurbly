@@ -6,7 +6,6 @@ import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
-import TestLanding from './components/TestLanding';
 
 function App() {
   const { user, loading, logout, isPremium } = useAuth();
@@ -142,11 +141,6 @@ function App() {
             
             {user && (
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setCurrentView('test')}
-                  className="px-4 py-2 bg-red-500 text-white font-bold hover:bg-red-600 rounded-lg transition"
-                >
-                </button>
                 <button
                   onClick={() => {
                     setEditingQuote(null);
