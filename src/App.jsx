@@ -28,6 +28,23 @@ function App() {
     }
   }, [user, currentView]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleCheckoutFinished = () => {
+      if (user) {
+        setEditingQuote(null);
+        setCurrentView('dashboard');
+        loadSavedQuotes();
+      }
+    };
+
+    window.addEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
+    return () => {
+      window.removeEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
+    };
+  }, [user, loadSavedQuotes]);
+
   const loadSavedQuotes = useCallback(async () => {
     if (!user) return;
 
@@ -47,23 +64,6 @@ function App() {
       setLoadingQuotes(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleCheckoutFinished = () => {
-      if (user) {
-        setEditingQuote(null);
-        setCurrentView('dashboard');
-        loadSavedQuotes();
-      }
-    };
-
-    window.addEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
-    return () => {
-      window.removeEventListener('refurbly:checkoutFinished', handleCheckoutFinished);
-    };
-  }, [user, loadSavedQuotes]);
 
   useEffect(() => {
     if (currentView === 'dashboard' && user) {
