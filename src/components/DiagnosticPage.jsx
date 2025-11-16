@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { auth, db, functions } from '../config/firebase';
+import { auth, functions } from '../config/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
+import { FirestoreWrapper } from '../services/firebase-wrapper';
 
 export default function DiagnosticPage({ onClose }) {
   const [results, setResults] = useState([]);

@@ -3,11 +3,13 @@ import AuthModal from './AuthModal';
 import DiagnosticPage from './DiagnosticPage';
 
 export default function HomePage({ onStartCalculator, onLoginSuccess }) {
+  const diagnosticsEnabled = import.meta.env.DEV;
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const handleLogoTap = () => {
+    if (!diagnosticsEnabled) return;
     const newTaps = logoTaps + 1;
     setLogoTaps(newTaps);
     if (newTaps >= 5) {
@@ -71,7 +73,9 @@ export default function HomePage({ onStartCalculator, onLoginSuccess }) {
           if (onLoginSuccess) onLoginSuccess();
         }} 
       />
-      {showDiagnostics && <DiagnosticPage onClose={() => setShowDiagnostics(false)} />}
+      {diagnosticsEnabled && showDiagnostics && (
+        <DiagnosticPage onClose={() => setShowDiagnostics(false)} />
+      )}
     </>
   );
 }

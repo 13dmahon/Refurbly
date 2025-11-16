@@ -5,11 +5,25 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { FirebaseAuthWrapper } from '../services/firebase-wrapper';
+import { FirebaseFunctions } from '@capacitor-firebase/functions';
 
 const isNativePlatform = Capacitor.isNativePlatform?.() ?? false;
 
 const callCheckoutSession = async (payload) => {
   if (isNativePlatform) {
+    try {
+      const nativeResult = await FirebaseFunctions.callByName({
+        name: 'createCheckoutSession',
+        region: 'us-central1',
+        data: payload,
+      });
+      if (nativeResult?.data || nativeResult?.result) {
+        return nativeResult.data ?? nativeResult.result;
+      }
+    } catch (nativeError) {
+      console.warn('Native FirebaseFunctions call failed, falling back to HTTPS fetch:', nativeError);
+    }
+
     const idToken = await FirebaseAuthWrapper.getIdToken(true);
     if (!idToken) {
       throw new Error('Unable to authenticate payment. Please sign in again.');

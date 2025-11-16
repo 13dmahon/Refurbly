@@ -146,21 +146,30 @@ export const FirebaseAuthWrapper = {
 
 export const FirestoreWrapper = {
   getDoc: async (collectionName, docId) => {
-    if (isNative) {
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const result = await FirebaseFirestore.getDocument({
-        reference: `${collectionName}/${docId}`,
-      })
-      return {
-        exists: () => !!result.snapshot,
-        data: () => result.snapshot?.data ?? null,
-        id: result.snapshot?.id ?? docId,
-      }
-    } else {
+    const loadWithWebSdk = async () => {
       const { doc, getDoc } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
       return await getDoc(doc(db, collectionName, docId))
     }
+
+    if (isNative) {
+      try {
+        const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+        const result = await FirebaseFirestore.getDocument({
+          reference: `${collectionName}/${docId}`,
+        })
+        return {
+          exists: () => !!result.snapshot,
+          data: () => result.snapshot?.data ?? null,
+          id: result.snapshot?.id ?? docId,
+        }
+      } catch (error) {
+        console.warn('[FirestoreWrapper] Native getDoc failed, falling back to web SDK:', error)
+        return await loadWithWebSdk()
+      }
+    }
+
+    return await loadWithWebSdk()
   },
 
   setDoc: async (collectionName, docId, data, options = {}) => {
@@ -222,33 +231,7 @@ export const FirestoreWrapper = {
 
   // iOS-SAFE: Get quotes for a specific user
   getQuotesForUser: async (userId) => {
-    if (isNative) {
-      console.log(`📱 Native: querying quotes for ${userId}`)
-      const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
-      const result = await FirebaseFirestore.getCollection({
-        reference: 'quotes',
-        queryConstraints: [
-          {
-            type: 'where',
-            fieldPath: 'userId',
-            opStr: '==',
-            value: userId,
-          },
-          {
-            type: 'orderBy',
-            fieldPath: 'createdAt',
-            directionStr: 'desc',
-          },
-        ],
-      })
-
-      return (result.snapshots ?? [])
-        .map((snap) => ({
-          id: snap.id,
-          ...snap.data,
-        }))
-        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
-    } else {
+    const queryWithWebSdk = async () => {
       console.log(`🌐 Web: query with where clause for ${userId}`)
       const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore')
       const { db } = await import('../config/firebase')
@@ -260,5 +243,40 @@ export const FirestoreWrapper = {
       const snapshot = await getDocs(q)
       return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
     }
+
+    if (isNative) {
+      try {
+        console.log(`📱 Native: querying quotes for ${userId}`)
+        const { FirebaseFirestore } = await import('@capacitor-firebase/firestore')
+        const result = await FirebaseFirestore.getCollection({
+          reference: 'quotes',
+          queryConstraints: [
+            {
+              type: 'where',
+              fieldPath: 'userId',
+              opStr: '==',
+              value: userId,
+            },
+            {
+              type: 'orderBy',
+              fieldPath: 'createdAt',
+              directionStr: 'desc',
+            },
+          ],
+        })
+
+        return (result.snapshots ?? [])
+          .map((snap) => ({
+            id: snap.id,
+            ...snap.data,
+          }))
+          .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+      } catch (error) {
+        console.warn('[FirestoreWrapper] Native getQuotesForUser failed, falling back to web SDK:', error)
+        return await queryWithWebSdk()
+      }
+    }
+
+    return await queryWithWebSdk()
   },
 }
