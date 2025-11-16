@@ -1,0 +1,16 @@
+--- a/src/services/firebase-wrapper.js
++++ b/src/services/firebase-wrapper.js
+@@ -15,7 +15,12 @@ let persistenceSet = false;
+ const webAuth = async () => {
+   const { getAuth, setPersistence, browserLocalPersistence } = await import('firebase/auth');
+   const { auth } = await import('../config/firebase');
+-  if (!persistenceSet) {
++  if (!persistenceSet && !isNative) {
++    // Only set persistence on web, not iOS (causes issues)
++    await setPersistence(auth, browserLocalPersistence);
++    persistenceSet = true;
++  } else if (!persistenceSet && isNative) {
++    // On iOS, skip persistence (already handled by native layer)
+     await setPersistence(auth, browserLocalPersistence);
+     persistenceSet = true;
+   }
