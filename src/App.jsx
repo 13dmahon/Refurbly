@@ -282,7 +282,7 @@ function App() {
                       <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Material costs & evidence</span></div>
                       <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Unlimited saved quotes</span></div>
                       <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">PDF export & sharing</span></div>
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Lifetime access</span></div>
+                      <div className="flex items-start gap-2"><span className="text-gray-700">Lifetime access</span></div>
                     </div>
                   </div>
                 </div>
@@ -371,3 +371,5 @@ function App() {
     </>
   );
 }
+
+export default App;

@@ -132,7 +132,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       try {
         const { collection, getDocs } = await import('firebase/firestore');
         const { db } = await import('../config/firebase');
-
+        
         const snap = await getDocs(collection(db, 'pricingTemplates'));
         const map = {};
         snap.docs.forEach((doc) => {
@@ -143,12 +143,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         setPricingTemplates(map);
       } catch (e) {
         console.error('❌ Failed to load pricing templates, using fallback:', e);
-        setPricingTemplates(null); // Will use RATES/SOURCES
+        setPricingTemplates(null);
       } finally {
         setTemplatesLoading(false);
       }
     };
-
+    
     loadTemplates();
   }, []);
 
@@ -199,7 +199,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materials = tpl?.materials?.[quality] ?? RATES.kitchen.materials[quality];
       const materialsDetails = tpl?.materialsDetails || 'Units & appliances';
       const source = tpl?.source || SOURCES.materials.kitchen;
-
+      
       const labour = hours * hourlyRate;
       const total = labour + materials;
       
@@ -224,7 +224,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materialsPerBathroom = tpl?.materialsPerBathroom?.[quality] ?? RATES.bathroom.materialsPerBathroom[quality];
       const materialsDetails = tpl?.materialsDetails || 'Suite & tiles';
       const source = tpl?.source || SOURCES.materials.bathroom;
-
+      
       const hours = hoursPerBathroom * bathrooms;
       const labour = hours * hourlyRate;
       const materials = materialsPerBathroom * bathrooms;
@@ -253,7 +253,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
         : `Paint & materials (${totalSqm}sqm)`;
       const source = tpl?.source || SOURCES.materials.general;
-
+      
       const hours = Math.round(totalSqm * hoursPerSqm);
       const labour = hours * hourlyRate;
       const materials = totalSqm * materialsPerSqm;
@@ -282,7 +282,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
         : `Carpet/laminate (${totalSqm}sqm)`;
       const source = tpl?.source || SOURCES.materials.flooring;
-
+      
       const hours = Math.round(totalSqm * hoursPerSqm);
       const labour = hours * hourlyRate;
       const materials = totalSqm * materialsPerSqm;
@@ -300,7 +300,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       });
     }
     
-    // Rest use hardcoded rates (plastering, rewire, heating, windows)
+    // Rest use hardcoded RATES (plastering, rewire, heating, windows)
     if (formData.needsPlastering) {
       const hours = Math.round(totalSqm * RATES.plastering.hoursPerSqm);
       const labour = hours * RATES.plastering.hourlyRate[quality];
@@ -401,25 +401,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       totalSqm
     };
   }, [formData, adjustments, customItems, pricingTemplates]);
-
-  // Rest of the component remains THE SAME (handleSaveQuote, UI, etc.)
-  // Just copy everything from your current Refurbly.jsx from line 315 onwards
-    
-    // Round to nearest £5k for free users
-    const roundedTotal = Math.round(total / 5000) * 5000;
-    const rangeMin = roundedTotal - 5000;
-    const rangeMax = roundedTotal + 5000;
-    
-    return {
-      roomBreakdown,
-      subtotal: Math.round(subtotal),
-      contingency,
-      total: Math.round(total),
-      rangeMin,
-      rangeMax,
-      totalSqm
-    };
-  }, [formData, adjustments, customItems]);
 
   const handleSaveQuote = async () => {
     if (!user) {
@@ -546,7 +527,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           ))}
         </div>
         <div className="flex items-center">
-            {['Property', 'What\'s Needed', 'Estimate'].map((label, i) => (
+          {['Property', 'What\'s Needed', 'Estimate'].map((label, i) => (
             <div key={i} className="flex-1 flex items-center">
               <div className="w-10 text-center text-xs sm:text-sm text-slate-600">{label}</div>
               {i < 2 && <div className="flex-1" />}
@@ -682,6 +663,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               {formData.location && `${formData.location} • `}
               {formData.bedrooms} bed {formData.propertyType} • {formData.quality} quality
             </p>
+
+            {templatesLoading && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 text-xs text-slate-600">
+                Updating with latest pricing in the background…
+              </div>
+            )}
 
             {isManuallyEdited && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm">
