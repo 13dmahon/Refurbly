@@ -6,6 +6,7 @@ import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
+import PricingEditor from './admin/PricingEditor';
 
 function App() {
   const { user, loading, logout, isPremium } = useAuth();
@@ -34,16 +35,13 @@ function App() {
     }
   }, [currentView, user]);
 
-    const loadSavedQuotes = async () => {
+  const loadSavedQuotes = async () => {
     if (!user) return;
     
     setLoadingQuotes(true);
     try {
       console.log('📋 Loading quotes for user:', user.uid);
-      
-      // Use the iOS-safe method
       const userQuotes = await FirestoreWrapper.getQuotesForUser(user.uid);
-      
       console.log(`✅ Found ${userQuotes.length} quotes`);
       setSavedQuotes(userQuotes);
     } catch (error) {
@@ -74,11 +72,8 @@ function App() {
 
   const handleQuoteSaved = () => {
     console.log("Quote saved! Reloading and navigating to dashboard...");
-    // Always reload quotes after save
     setCurrentView("dashboard");
-    if (true) {
-      loadSavedQuotes();
-    }
+    loadSavedQuotes();
   };
 
   if (loading) {
@@ -102,6 +97,33 @@ function App() {
       console.error('Logout error:', error);
     }
   };
+
+  // 🔥 ADMIN VIEW
+  if (currentView === 'admin') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div
+          className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+          style={headerSafeAreaStyle}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="text-2xl hover:opacity-70 transition"
+            >
+              ←
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
+          </div>
+          <ProfileDropdown 
+            onLogout={handleLogout}
+            onAdminClick={() => setCurrentView('admin')}
+          />
+        </div>
+        <PricingEditor />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -154,7 +176,10 @@ function App() {
                 >
                   My Quotes
                 </button>
-                <ProfileDropdown onLogout={handleLogout} />
+                <ProfileDropdown 
+                  onLogout={handleLogout}
+                  onAdminClick={() => setCurrentView('admin')}
+                />
               </div>
             )}
           </div>
@@ -175,7 +200,6 @@ function App() {
         </div>
       )}
 
-
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
           <div
@@ -189,7 +213,10 @@ function App() {
                 {isPremium && <span className="ml-2 text-green-600 font-semibold">✓ Premium</span>}
               </p>
             </div>
-            <ProfileDropdown onLogout={handleLogout} />
+            <ProfileDropdown 
+              onLogout={handleLogout}
+              onAdminClick={() => setCurrentView('admin')}
+            />
           </div>
 
           <div className="p-6">
@@ -290,10 +317,6 @@ function App() {
                           <span className="text-gray-600">Quality:</span>
                           <span className="font-semibold capitalize">{quote.quality}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Refurb level:</span>
-                          <span className="font-semibold capitalize">{quote.refurbLevel}</span>
-                        </div>
                       </div>
 
                       <div className="border-t pt-4 mb-4">
@@ -348,5 +371,3 @@ function App() {
     </>
   );
 }
-
-export default App;

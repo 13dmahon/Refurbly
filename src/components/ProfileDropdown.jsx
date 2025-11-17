@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 
-export default function ProfileDropdown({ onLogout }) {
+export default function ProfileDropdown({ onLogout, onAdminClick }) {
   const { user, isPremium, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [contactMessage, setContactMessage] = useState('');
   const [sending, setSending] = useState(false);
   const dropdownRef = useRef(null);
+
+  const isAdmin = user?.email === 'dominick.m.mahon@gmail.com';
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -79,6 +81,17 @@ export default function ProfileDropdown({ onLogout }) {
           </div>
 
           <div className="p-2">
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (onAdminClick) onAdminClick();
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 rounded-lg hover:bg-purple-50 transition text-sm text-purple-700 font-semibold border-b border-gray-200"
+              >
+                ⚙️ Admin: Pricing Editor
+              </button>
+            )}
             <button
               onClick={() => {
                 setShowContact(true);
