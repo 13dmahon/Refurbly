@@ -7,13 +7,14 @@ import { getFunctions } from 'firebase/functions'
 
 console.log('🔥 Firebase imports loaded')
 
+// ✅ CORRECTED: Using Web app config instead of iOS config
 const firebaseConfig = {
-  apiKey: "AIzaSyBPvb63rhkyCJdsm0ZuPc6DbeG7ds-gD7c",
+  apiKey: "AIzaSyD07KVqjANE9V0V0RmycQU7Djum88Hr81w",
   authDomain: "ascension-app-e3d00.firebaseapp.com",
   projectId: "ascension-app-e3d00",
   storageBucket: "ascension-app-e3d00.firebasestorage.app",
   messagingSenderId: "942940274103",
-  appId: "1:942940274103:ios:502983e5779d820167bc32",
+  appId: "1:942940274103:web:a5305d30ac25da3967bc32",
   measurementId: "G-YN28QXJDE6"
 }
 
@@ -22,7 +23,9 @@ console.log('🔥 Config ready')
 const app = initializeApp(firebaseConfig)
 console.log('✅ Firebase initialized')
 
-export const auth = initializeAuth(app, {})
+export const auth = initializeAuth(app, {
+  persistence: browserLocalPersistence
+})
 console.log('✅ Auth ready')
 
 export const db = initializeFirestore(app, {
