@@ -6,7 +6,6 @@ import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
-import TestLanding from './components/TestLanding';
 
 function App() {
   const { user, loading, logout, isPremium } = useAuth();
@@ -17,6 +16,7 @@ function App() {
   const [editingQuote, setEditingQuote] = useState(null);
 
   const maxQuotes = isPremium ? 10 : 5;
+  const headerSafeAreaStyle = { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' };
 
   useEffect(() => {
     console.log('🔍 isPremium:', isPremium);
@@ -117,7 +117,10 @@ function App() {
 
       {currentView === 'calculator' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div
+            className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+            style={headerSafeAreaStyle}
+          >
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -142,11 +145,6 @@ function App() {
             
             {user && (
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setCurrentView('test')}
-                  className="px-4 py-2 bg-red-500 text-white font-bold hover:bg-red-600 rounded-lg transition"
-                >
-                </button>
                 <button
                   onClick={() => {
                     setEditingQuote(null);
@@ -180,7 +178,10 @@ function App() {
 
       {currentView === 'dashboard' && (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-          <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div
+            className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+            style={headerSafeAreaStyle}
+          >
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Saved Quotes</h1>
               <p className="text-sm text-gray-600">
