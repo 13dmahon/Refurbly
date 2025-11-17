@@ -10,8 +10,7 @@ const AUTO_SQM = {
   maisonette: { 2: 70, 3: 90, 4: 110, 5: 135 }
 };
 
-// HOURLY RATES + MATERIALS
-// 2025 London-adjusted rates with evidence
+// FALLBACK RATES (used if Firestore templates don't load)
 const RATES = {
   decoration: {
     hourlyRate: { budget: 30, standard: 35, premium: 45 },
@@ -55,7 +54,7 @@ const RATES = {
   }
 };
 
-// Evidence sources with links
+// FALLBACK SOURCES
 const SOURCES = {
   labour: {
     text: "Checkatrade & MyBuilder 2025 London rates",
@@ -106,6 +105,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
   const [newItemCost, setNewItemCost] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const isEditing = !!editingQuote;
+
+  // 🔥 NEW: Load pricing templates from Firestore
+  const [pricingTemplates, setPricingTemplates] = useState(null);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   
   const [formData, setFormData] = useState({
     bedrooms: '2',
@@ -122,6 +125,32 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     needsHeating: false,
     needsWindows: false,
   });
+
+  // 🔥 Load pricing templates from Firestore on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const { collection, getDocs } = await import('firebase/firestore');
+        const { db } = await import('../config/firebase');
+
+        const snap = await getDocs(collection(db, 'pricingTemplates'));
+        const map = {};
+        snap.docs.forEach((doc) => {
+          map[doc.id] = { id: doc.id, ...doc.data() };
+        });
+        
+        console.log('✅ Loaded pricing templates from Firestore:', Object.keys(map));
+        setPricingTemplates(map);
+      } catch (e) {
+        console.error('❌ Failed to load pricing templates, using fallback:', e);
+        setPricingTemplates(null); // Will use RATES/SOURCES
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    loadTemplates();
+  }, []);
 
   useEffect(() => {
     if (editingQuote) {
@@ -161,73 +190,117 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     
     let roomBreakdown = [];
     
-    // Build room-by-room breakdown
+    // 🔥 KITCHEN: Use Firestore template if available
     if (formData.needsKitchen) {
-      const labour = RATES.kitchen.hours[quality] * RATES.kitchen.hourlyRate[quality];
-      const materials = RATES.kitchen.materials[quality];
+      const tpl = pricingTemplates?.kitchen;
+      
+      const hours = tpl?.hours?.[quality] ?? RATES.kitchen.hours[quality];
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.kitchen.hourlyRate[quality];
+      const materials = tpl?.materials?.[quality] ?? RATES.kitchen.materials[quality];
+      const materialsDetails = tpl?.materialsDetails || 'Units & appliances';
+      const source = tpl?.source || SOURCES.materials.kitchen;
+
+      const labour = hours * hourlyRate;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'kitchen',
         name: 'Kitchen',
         labour,
-        labourDetails: `${RATES.kitchen.hours[quality]} hrs @ £${RATES.kitchen.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: 'Units & appliances',
+        materialsDetails,
         total: adjustments.kitchen || total,
-        source: SOURCES.materials.kitchen
+        source
       });
     }
     
+    // 🔥 BATHROOMS: Use Firestore template if available
     if (formData.needsBathroom) {
-      const labour = RATES.bathroom.hoursPerBathroom[quality] * bathrooms * RATES.bathroom.hourlyRate[quality];
-      const materials = RATES.bathroom.materialsPerBathroom[quality] * bathrooms;
+      const tpl = pricingTemplates?.bathrooms;
+      
+      const hoursPerBathroom = tpl?.hoursPerBathroom?.[quality] ?? RATES.bathroom.hoursPerBathroom[quality];
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.bathroom.hourlyRate[quality];
+      const materialsPerBathroom = tpl?.materialsPerBathroom?.[quality] ?? RATES.bathroom.materialsPerBathroom[quality];
+      const materialsDetails = tpl?.materialsDetails || 'Suite & tiles';
+      const source = tpl?.source || SOURCES.materials.bathroom;
+
+      const hours = hoursPerBathroom * bathrooms;
+      const labour = hours * hourlyRate;
+      const materials = materialsPerBathroom * bathrooms;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'bathrooms',
         name: `Bathroom${bathrooms > 1 ? 's' : ''} (${bathrooms})`,
         labour,
-        labourDetails: `${RATES.bathroom.hoursPerBathroom[quality] * bathrooms} hrs @ £${RATES.bathroom.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: 'Suite & tiles',
+        materialsDetails,
         total: adjustments.bathrooms || total,
-        source: SOURCES.materials.bathroom
+        source
       });
     }
     
+    // 🔥 DECORATION: Use Firestore template if available
     if (formData.needsDecoration) {
-      const hours = Math.round(totalSqm * RATES.decoration.hoursPerSqm);
-      const labour = hours * RATES.decoration.hourlyRate[quality];
-      const materials = totalSqm * RATES.decoration.materialsPerSqm[quality];
+      const tpl = pricingTemplates?.decoration;
+      
+      const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.decoration.hoursPerSqm;
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.decoration.hourlyRate[quality];
+      const materialsPerSqm = tpl?.materialsPerSqm?.[quality] ?? RATES.decoration.materialsPerSqm[quality];
+      const materialsDetails = tpl?.materialsDetailsTemplate 
+        ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
+        : `Paint & materials (${totalSqm}sqm)`;
+      const source = tpl?.source || SOURCES.materials.general;
+
+      const hours = Math.round(totalSqm * hoursPerSqm);
+      const labour = hours * hourlyRate;
+      const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'decoration',
         name: 'Decoration',
         labour,
-        labourDetails: `${hours} hrs @ £${RATES.decoration.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: `Paint & materials (${totalSqm}sqm)`,
+        materialsDetails,
         total: adjustments.decoration || total,
-        source: SOURCES.materials.general
+        source
       });
     }
     
+    // 🔥 FLOORING: Use Firestore template if available
     if (formData.needsFlooring) {
-      const hours = Math.round(totalSqm * RATES.flooring.hoursPerSqm);
-      const labour = hours * RATES.flooring.hourlyRate[quality];
-      const materials = totalSqm * RATES.flooring.materialsPerSqm[quality];
+      const tpl = pricingTemplates?.flooring;
+      
+      const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.flooring.hoursPerSqm;
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.flooring.hourlyRate[quality];
+      const materialsPerSqm = tpl?.materialsPerSqm?.[quality] ?? RATES.flooring.materialsPerSqm[quality];
+      const materialsDetails = tpl?.materialsDetailsTemplate
+        ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
+        : `Carpet/laminate (${totalSqm}sqm)`;
+      const source = tpl?.source || SOURCES.materials.flooring;
+
+      const hours = Math.round(totalSqm * hoursPerSqm);
+      const labour = hours * hourlyRate;
+      const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'flooring',
         name: 'Flooring',
         labour,
-        labourDetails: `${hours} hrs @ £${RATES.flooring.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: `Carpet/laminate (${totalSqm}sqm)`,
+        materialsDetails,
         total: adjustments.flooring || total,
-        source: SOURCES.materials.flooring
+        source
       });
     }
     
+    // Rest use hardcoded rates (plastering, rewire, heating, windows)
     if (formData.needsPlastering) {
       const hours = Math.round(totalSqm * RATES.plastering.hoursPerSqm);
       const labour = hours * RATES.plastering.hourlyRate[quality];
@@ -312,6 +385,25 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     const subtotal = roomBreakdown.reduce((sum, room) => sum + room.total, 0);
     const contingency = Math.round(subtotal * 0.15);
     const total = subtotal + contingency;
+    
+    // Round to nearest £5k for free users
+    const roundedTotal = Math.round(total / 5000) * 5000;
+    const rangeMin = roundedTotal - 5000;
+    const rangeMax = roundedTotal + 5000;
+    
+    return {
+      roomBreakdown,
+      subtotal: Math.round(subtotal),
+      contingency,
+      total: Math.round(total),
+      rangeMin,
+      rangeMax,
+      totalSqm
+    };
+  }, [formData, adjustments, customItems, pricingTemplates]);
+
+  // Rest of the component remains THE SAME (handleSaveQuote, UI, etc.)
+  // Just copy everything from your current Refurbly.jsx from line 315 onwards
     
     // Round to nearest £5k for free users
     const roundedTotal = Math.round(total / 5000) * 5000;
