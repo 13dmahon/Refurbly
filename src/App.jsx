@@ -17,7 +17,11 @@ function App() {
   const [editingQuote, setEditingQuote] = useState(null);
 
   const maxQuotes = isPremium ? 10 : 5;
-  const headerSafeAreaStyle = { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' };
+
+  // ⬇️ Extra-safe padding so headers & content sit below the notch / status bar
+  const headerSafeAreaStyle = {
+    paddingTop: 'calc(env(safe-area-inset-top, 20px) + 0.75rem)',
+  };
 
   useEffect(() => {
     console.log('🔍 isPremium:', isPremium);
@@ -37,7 +41,7 @@ function App() {
 
   const loadSavedQuotes = async () => {
     if (!user) return;
-    
+
     setLoadingQuotes(true);
     try {
       console.log('📋 Loading quotes for user:', user.uid);
@@ -54,10 +58,10 @@ function App() {
 
   const handleDeleteQuote = async (quoteId) => {
     if (!window.confirm('Are you sure you want to delete this quote?')) return;
-    
+
     try {
       await FirestoreWrapper.deleteDoc('quotes', quoteId);
-      setSavedQuotes(quotes => quotes.filter(q => q.id !== quoteId));
+      setSavedQuotes((quotes) => quotes.filter((q) => q.id !== quoteId));
     } catch (error) {
       console.error('Error deleting quote:', error);
       alert('Failed to delete quote');
@@ -71,8 +75,8 @@ function App() {
   };
 
   const handleQuoteSaved = () => {
-    console.log("Quote saved! Reloading and navigating to dashboard...");
-    setCurrentView("dashboard");
+    console.log('Quote saved! Reloading and navigating to dashboard...');
+    setCurrentView('dashboard');
     loadSavedQuotes();
   };
 
@@ -115,12 +119,16 @@ function App() {
             </button>
             <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
           </div>
-          <ProfileDropdown 
+          <ProfileDropdown
             onLogout={handleLogout}
             onAdminClick={() => setCurrentView('admin')}
           />
         </div>
-        <PricingEditor />
+
+        {/* small top padding under the header */}
+        <div className="p-6 pt-4 sm:pt-6">
+          <PricingEditor />
+        </div>
       </div>
     );
   }
@@ -128,7 +136,7 @@ function App() {
   return (
     <>
       {currentView === 'home' && (
-        <HomePage 
+        <HomePage
           onStartCalculator={() => setCurrentView('calculator')}
           onLoginSuccess={() => {
             console.log('🎯 Login success - navigating to dashboard');
@@ -155,7 +163,7 @@ function App() {
               </button>
               <h1 className="text-xl font-bold text-gray-900">Refurbly</h1>
             </div>
-            
+
             {!user && (
               <button
                 onClick={() => setCurrentView('home')}
@@ -164,7 +172,7 @@ function App() {
                 Sign In
               </button>
             )}
-            
+
             {user && (
               <div className="flex items-center gap-4">
                 <button
@@ -176,7 +184,7 @@ function App() {
                 >
                   My Quotes
                 </button>
-                <ProfileDropdown 
+                <ProfileDropdown
                   onLogout={handleLogout}
                   onAdminClick={() => setCurrentView('admin')}
                 />
@@ -184,8 +192,9 @@ function App() {
             )}
           </div>
 
-          <div className="p-6">
-            <Refurbly 
+          {/* ⬇️ extra space under the header so the stepper / "Your Estimate" isn't too high */}
+          <div className="p-6 pt-5 sm:pt-7">
+            <Refurbly
               onQuoteSaved={handleQuoteSaved}
               editingQuote={editingQuote}
               quotesCount={savedQuotes.length}
@@ -210,24 +219,30 @@ function App() {
               <h1 className="text-xl font-bold text-gray-900">My Saved Quotes</h1>
               <p className="text-sm text-gray-600">
                 {savedQuotes.length} / {maxQuotes} quotes used
-                {isPremium && <span className="ml-2 text-green-600 font-semibold">✓ Premium</span>}
+                {isPremium && (
+                  <span className="ml-2 text-green-600 font-semibold">✓ Premium</span>
+                )}
               </p>
             </div>
-            <ProfileDropdown 
+            <ProfileDropdown
               onLogout={handleLogout}
               onAdminClick={() => setCurrentView('admin')}
             />
           </div>
 
-          <div className="p-6">
+          {/* ⬇️ extra space under the header */}
+          <div className="p-6 pt-5 sm:pt-7">
             <div className="max-w-6xl mx-auto">
               {!isPremium && savedQuotes.length >= 5 && (
                 <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 mb-6 text-white shadow-xl">
                   <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex-1">
-                      <h2 className="text-2xl font-bold mb-2">You've reached your free quote limit!</h2>
+                      <h2 className="text-2xl font-bold mb-2">
+                        You've reached your free quote limit!
+                      </h2>
                       <p className="text-blue-100 mb-4">
-                        Upgrade to Premium to save up to 10 quotes, get full breakdowns, and edit your saved quotes.
+                        Upgrade to Premium to save up to 10 quotes, get full breakdowns, and
+                        edit your saved quotes.
                       </p>
                     </div>
                     <div className="bg-white rounded-xl p-6 text-center min-w-[250px]">
@@ -243,11 +258,15 @@ function App() {
                 <button
                   onClick={() => {
                     if (!isPremium && savedQuotes.length >= 5) {
-                      alert('You\'ve reached your free limit of 5 quotes. Upgrade to Premium to save more!');
+                      alert(
+                        "You've reached your free limit of 5 quotes. Upgrade to Premium to save more!",
+                      );
                       return;
                     }
                     if (isPremium && savedQuotes.length >= 10) {
-                      alert('You\'ve reached the maximum of 10 saved quotes. Please delete some quotes to add new ones.');
+                      alert(
+                        "You've reached the maximum of 10 saved quotes. Please delete some quotes to add new ones.",
+                      );
                       return;
                     }
                     setEditingQuote(null);
@@ -274,22 +293,44 @@ function App() {
                   <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
                     <div className="flex items-center gap-3 mb-4">
                       <span className="text-3xl">✨</span>
-                      <h3 className="text-xl font-bold text-blue-900">Upgrade to Premium - £9.99</h3>
+                      <h3 className="text-xl font-bold text-blue-900">
+                        Upgrade to Premium - £9.99
+                      </h3>
                     </div>
                     <div className="grid md:grid-cols-2 gap-4 text-sm">
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Detailed room breakdowns</span></div>
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Labour hours & rates</span></div>
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Material costs & evidence</span></div>
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">Unlimited saved quotes</span></div>
-                      <div className="flex items-start gap-2"><span className="text-green-600 font-bold">✓</span><span className="text-gray-700">PDF export & sharing</span></div>
-                      <div className="flex items-start gap-2"><span className="text-gray-700">Lifetime access</span></div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span className="text-gray-700">Detailed room breakdowns</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span className="text-gray-700">Labour hours & rates</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span className="text-gray-700">Material costs & evidence</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span className="text-gray-700">Unlimited saved quotes</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold">✓</span>
+                        <span className="text-gray-700">PDF export & sharing</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-gray-700">Lifetime access</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {savedQuotes.map((quote) => (
-                    <div key={quote.id} className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition">
+                    <div
+                      key={quote.id}
+                      className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition"
+                    >
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex-1">
                           <h3 className="font-bold text-lg text-gray-900 truncate">
@@ -315,7 +356,9 @@ function App() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Quality:</span>
-                          <span className="font-semibold capitalize">{quote.quality}</span>
+                          <span className="font-semibold capitalize">
+                            {quote.quality}
+                          </span>
                         </div>
                       </div>
 
@@ -326,7 +369,7 @@ function App() {
                             £{quote.estimate?.toLocaleString() || '0'}
                           </span>
                         </div>
-                        
+
                         <div className="text-xs text-gray-500 mt-2">
                           Saved: {new Date(quote.createdAt).toLocaleDateString()}
                         </div>
