@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { FirestoreWrapper } from './services/firebase-wrapper';
 import { useAuth } from './hooks/useAuth.jsx';
 import HomePage from './components/HomePage';
 import Refurbly from './components/Refurbly';
 import QuoteDetail from './components/QuoteDetail';
 import PaymentButton from './components/PaymentButton';
+import ApplePaymentButton from './components/ApplePaymentButton';
 import ProfileDropdown from './components/ProfileDropdown';
 import PricingEditor from './admin/PricingEditor';
 
@@ -133,6 +135,91 @@ function App() {
     );
   }
 
+  // 🔥 PREMIUM UNLOCK VIEW (iOS)
+  if (currentView === 'unlock-premium') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div
+          className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+          style={headerSafeAreaStyle}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className="text-2xl hover:opacity-70 transition"
+            >
+              ←
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">Unlock Premium</h1>
+          </div>
+          <ProfileDropdown
+            onLogout={handleLogout}
+            onAdminClick={() => setCurrentView('admin')}
+          />
+        </div>
+
+        <div className="p-6 pt-8 max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+            <div className="text-center mb-8">
+              <div className="text-6xl mb-4">🔓</div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                Unlock Full Breakdown
+              </h2>
+              <p className="text-gray-600">
+                See exact costs per room with labour rates, material costs, and source links
+              </p>
+            </div>
+
+            <ApplePaymentButton />
+
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <h3 className="font-bold text-gray-900 mb-4 text-center">
+                ✨ What's Included:
+              </h3>
+              <div className="grid gap-3 text-sm">
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 font-bold text-lg">✓</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">Detailed Room Breakdowns</div>
+                    <div className="text-gray-600">See exact costs for kitchen, bathrooms, flooring, etc.</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 font-bold text-lg">✓</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">Labour Hours & Rates</div>
+                    <div className="text-gray-600">Understand how many hours each job takes</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 font-bold text-lg">✓</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">Material Cost Evidence</div>
+                    <div className="text-gray-600">Links to Checkatrade & Knight Frank sources</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 font-bold text-lg">✓</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">Edit & Adjust Quotes</div>
+                    <div className="text-gray-600">Customize costs and add custom items</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 font-bold text-lg">✓</span>
+                  <div>
+                    <div className="font-semibold text-gray-900">Save Up to 10 Quotes</div>
+                    <div className="text-gray-600">Compare multiple properties</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {currentView === 'home' && (
@@ -248,7 +335,16 @@ function App() {
                     <div className="bg-white rounded-xl p-6 text-center min-w-[250px]">
                       <div className="text-3xl font-bold text-gray-900 mb-2">£9.99</div>
                       <div className="text-sm text-gray-600 mb-4">One-time payment</div>
-                      <PaymentButton quoteData={{}} />
+                      {Capacitor.getPlatform() === 'ios' ? (
+                        <button
+                          onClick={() => setCurrentView('unlock-premium')}
+                          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition"
+                        >
+                          🔓 Unlock Premium
+                        </button>
+                      ) : (
+                        <PaymentButton quoteData={{}} />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -297,7 +393,7 @@ function App() {
                         Upgrade to Premium - £9.99
                       </h3>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div className="grid md:grid-cols-2 gap-4 text-sm mb-6">
                       <div className="flex items-start gap-2">
                         <span className="text-green-600 font-bold">✓</span>
                         <span className="text-gray-700">Detailed room breakdowns</span>
@@ -312,7 +408,7 @@ function App() {
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">Unlimited saved quotes</span>
+                        <span className="text-gray-700">Save up to 10 quotes</span>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="text-green-600 font-bold">✓</span>
@@ -322,6 +418,17 @@ function App() {
                         <span className="text-gray-700">Lifetime access</span>
                       </div>
                     </div>
+                    
+                    {Capacitor.getPlatform() === 'ios' ? (
+                      <button
+                        onClick={() => setCurrentView('unlock-premium')}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition"
+                      >
+                        🔓 Unlock Premium - £9.99
+                      </button>
+                    ) : (
+                      <PaymentButton quoteData={{}} compact={true} />
+                    )}
                   </div>
                 </div>
               ) : (
@@ -392,7 +499,17 @@ function App() {
                             </button>
                           </>
                         ) : (
-                          <PaymentButton quoteData={quote} inCard={true} />
+                          Capacitor.getPlatform() === 'ios' ? (
+                            <button
+                              onClick={() => setCurrentView('unlock-premium')}
+                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-bold hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2 shadow-md"
+                            >
+                              <span className="text-xl">🔓</span>
+                              Unlock - £9.99
+                            </button>
+                          ) : (
+                            <PaymentButton quoteData={quote} inCard={true} />
+                          )
                         )}
                       </div>
                     </div>

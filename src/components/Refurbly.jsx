@@ -725,7 +725,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
                       <p className="text-gray-600 mb-4">See exact costs per room with labour rates, material costs, and source links</p>
                       
-                      // WITH:
+                     
                       {user ? (
                         Capacitor.getPlatform() === 'ios' ? (
                           <ApplePaymentButton />
