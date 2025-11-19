@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { FirestoreWrapper } from '../services/firebase-wrapper';
 import PaymentButton from './PaymentButton';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { Capacitor } from '@capacitor/core';
+import ApplePaymentButton from './ApplePaymentButton';
 
 // Auto-calculate sqm from property details
 const AUTO_SQM = {
@@ -722,8 +724,14 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       <div className="text-4xl mb-4">🔒</div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
                       <p className="text-gray-600 mb-4">See exact costs per room with labour rates, material costs, and source links</p>
+                      
+                      // WITH:
                       {user ? (
-                        <PaymentButton quoteData={formData} />
+                        Capacitor.getPlatform() === 'ios' ? (
+                          <ApplePaymentButton />
+                        ) : (
+                          <PaymentButton quoteData={formData} />
+                        )
                       ) : (
                         <div className="text-amber-700 text-sm">Sign in to unlock premium features</div>
                       )}

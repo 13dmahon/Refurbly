@@ -32,6 +32,61 @@ export default function ProfileDropdown({ onLogout, onAdminClick }) {
     setSending(false);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('⚠️ WARNING: This will permanently delete:\n\n• Your account\n• All saved quotes\n• Your premium access\n\nThis CANNOT be undone.\n\nAre you absolutely sure?')) {
+      return;
+    }
+
+    const confirmation = prompt('Type DELETE in capital letters to confirm account deletion:');
+    if (confirmation !== 'DELETE') {
+      alert('Account deletion cancelled.');
+      return;
+    }
+
+    setIsOpen(false);
+    
+    try {
+      const { collection, query, where, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+      const { deleteUser } = await import('firebase/auth');
+      const { db, auth } = await import('../config/firebase');
+
+      console.log('🗑️ Starting account deletion for:', user.uid);
+
+      // 1. Delete all user quotes
+      const quotesRef = collection(db, 'quotes');
+      const q = query(quotesRef, where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      
+      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+      await Promise.all(deletePromises);
+      console.log(`✅ Deleted ${snapshot.docs.length} quotes`);
+
+      // 2. Delete user document
+      try {
+        await deleteDoc(doc(db, 'users', user.uid));
+        console.log('✅ Deleted user document');
+      } catch (e) {
+        console.log('No user document to delete');
+      }
+
+      // 3. Delete Firebase auth account
+      await deleteUser(auth.currentUser);
+      console.log('✅ Deleted Firebase auth account');
+      
+      alert('✅ Your account has been permanently deleted. You will now be signed out.');
+      window.location.href = '/';
+      
+    } catch (error) {
+      console.error('❌ Delete account error:', error);
+      
+      if (error.code === 'auth/requires-recent-login') {
+        alert('⚠️ For security reasons, please sign out and sign back in, then try deleting your account again.');
+      } else {
+        alert('Failed to delete account. Please contact support at dominick.m.mahon@gmail.com');
+      }
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -87,7 +142,7 @@ export default function ProfileDropdown({ onLogout, onAdminClick }) {
                   if (onAdminClick) onAdminClick();
                   setIsOpen(false);
                 }}
-                className="w-full text-left px-4 py-2 rounded-lg hover:bg-purple-50 transition text-sm text-purple-700 font-semibold border-b border-gray-200"
+                className="w-full text-left px-4 py-2 rounded-lg hover:bg-purple-50 transition text-sm text-purple-700 font-semibold"
               >
                 ⚙️ Admin: Pricing Editor
               </button>
@@ -106,9 +161,16 @@ export default function ProfileDropdown({ onLogout, onAdminClick }) {
                 if (onLogout) onLogout();
                 setIsOpen(false);
               }}
-              className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 transition text-sm text-red-600"
+              className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 transition text-sm text-gray-700"
             >
               🚪 Sign Out
+            </button>
+            <div className="border-t border-gray-200 my-2"></div>
+            <button
+              onClick={handleDeleteAccount}
+              className="w-full text-left px-4 py-2 rounded-lg hover:bg-red-50 transition text-sm text-red-600 font-medium"
+            >
+              🗑️ Delete Account
             </button>
           </div>
         </div>

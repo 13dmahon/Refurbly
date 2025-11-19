@@ -22,8 +22,15 @@ export function AuthProvider({ children }) {
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setIsPremium(userData.isPremium === true);
-            console.log('✅ Premium status:', userData.isPremium);
+            const premiumStatus = userData.isPremium === true;
+            setIsPremium(premiumStatus);
+            console.log('✅ Premium status:', premiumStatus);
+            
+            // Log payment info if available
+            if (premiumStatus) {
+              console.log('💳 Payment provider:', userData.paymentProvider || 'unknown');
+              console.log('📅 Premium since:', userData.premiumSince || 'unknown');
+            }
           } else {
             console.log('⚠️ No user document found');
             setIsPremium(false);

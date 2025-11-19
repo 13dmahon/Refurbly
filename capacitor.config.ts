@@ -23,6 +23,9 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
   },
+  ios: {
+    contentInset: 'automatic'
+  }
 };
 
 export default config;
