@@ -1,8 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import removeCrossorigin from './vite-plugin-remove-crossorigin.js'
 
 export default defineConfig({
-  plugins: [react(), removeCrossorigin()],
-  base: '/',
+  plugins: [react()],
+  resolve: {
+    alias: {
+      'react-native': 'react-native-web',
+    },
+  },
+  optimizeDeps: {
+    exclude: ['expo-in-app-purchases']
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      ignore: ['expo-in-app-purchases']
+    }
+  }
 })

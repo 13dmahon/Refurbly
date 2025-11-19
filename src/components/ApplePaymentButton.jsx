@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import * as InAppPurchases from 'expo-in-app-purchases';
 import { Capacitor } from '@capacitor/core';
 import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth';
 
 const PRODUCT_ID = 'premium_lifetime';
+
+// Only import IAP on native platforms
+let InAppPurchases = null;
+if (Capacitor.isNativePlatform()) {
+  InAppPurchases = require('expo-in-app-purchases');
+}
 
 export default function ApplePaymentButton() {
   const { user } = useAuth();
@@ -17,12 +22,12 @@ export default function ApplePaymentButton() {
   const isIOS = Capacitor.getPlatform() === 'ios';
 
   useEffect(() => {
-    if (isIOS) {
+    if (isIOS && InAppPurchases) {
       initializeIAP();
     }
     
     return () => {
-      if (connected) {
+      if (connected && InAppPurchases) {
         InAppPurchases.disconnectAsync().catch(e => {
           console.log('Disconnect error (safe to ignore):', e);
         });
@@ -31,6 +36,8 @@ export default function ApplePaymentButton() {
   }, [isIOS]);
 
   const initializeIAP = async () => {
+    if (!InAppPurchases) return;
+    
     try {
       console.log('🛒 Initializing In-App Purchases...');
       
@@ -61,6 +68,8 @@ export default function ApplePaymentButton() {
   };
 
   const handlePurchaseUpdate = ({ responseCode, results, errorCode }) => {
+    if (!InAppPurchases) return;
+    
     console.log('🔔 Purchase update:', { responseCode, errorCode, results });
 
     if (responseCode === InAppPurchases.IAPResponseCode.OK) {
@@ -86,6 +95,8 @@ export default function ApplePaymentButton() {
   };
 
   const finalizePurchase = async (purchase) => {
+    if (!InAppPurchases) return;
+    
     try {
       console.log('💾 Finalizing purchase...');
       
@@ -132,6 +143,8 @@ export default function ApplePaymentButton() {
   };
 
   const handlePurchase = async () => {
+    if (!InAppPurchases) return;
+    
     if (!product) {
       setError('Product not loaded. Please close and reopen the app.');
       return;
@@ -163,6 +176,8 @@ export default function ApplePaymentButton() {
   };
 
   const handleRestorePurchases = async () => {
+    if (!InAppPurchases) return;
+    
     if (!user) {
       setError('Please sign in first to restore purchases.');
       return;
