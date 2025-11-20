@@ -5,12 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 
 const PRODUCT_ID = 'premium_lifetime';
 
-// Only import IAP on native platforms
-let InAppPurchases = null;
-if (Capacitor.isNativePlatform()) {
-  InAppPurchases = require('expo-in-app-purchases');
-}
-
 export default function ApplePaymentButton() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -18,11 +12,27 @@ export default function ApplePaymentButton() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [initError, setInitError] = useState('');
+  const [InAppPurchases, setInAppPurchases] = useState(null);
 
   const isIOS = Capacitor.getPlatform() === 'ios';
 
   useEffect(() => {
-    if (isIOS && InAppPurchases) {
+    if (isIOS && Capacitor.isNativePlatform()) {
+      // Dynamically import only on native iOS
+      import('expo-in-app-purchases')
+        .then(module => {
+          console.log('✅ IAP module loaded');
+          setInAppPurchases(module);
+        })
+        .catch(err => {
+          console.error('Failed to load IAP module:', err);
+          setInitError('IAP module not available');
+        });
+    }
+  }, [isIOS]);
+
+  useEffect(() => {
+    if (InAppPurchases) {
       initializeIAP();
     }
     
@@ -33,7 +43,7 @@ export default function ApplePaymentButton() {
         });
       }
     };
-  }, [isIOS]);
+  }, [InAppPurchases]);
 
   const initializeIAP = async () => {
     if (!InAppPurchases) return;
@@ -256,11 +266,20 @@ export default function ApplePaymentButton() {
     );
   }
 
-  if (!product && !initError) {
+  if (!product && !initError && InAppPurchases) {
     return (
       <div className="text-center py-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
         <p className="text-sm text-gray-600">Loading pricing...</p>
+      </div>
+    );
+  }
+
+  if (!InAppPurchases) {
+    return (
+      <div className="text-center py-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+        <p className="text-sm text-gray-600">Initializing...</p>
       </div>
     );
   }
