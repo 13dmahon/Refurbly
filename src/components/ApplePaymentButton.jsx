@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import Purchases from '@revenuecat/purchases-capacitor';
+import { Purchases } from '@revenuecat/purchases-capacitor';
 import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth';
 
@@ -81,7 +81,6 @@ export default function ApplePaymentButton() {
 
       console.log('✅ Purchase successful:', purchaseResult);
 
-      // Update Firestore
       await FirestoreWrapper.updateDoc('users', user.uid, {
         isPremium: true,
         premiumSince: new Date().toISOString(),
