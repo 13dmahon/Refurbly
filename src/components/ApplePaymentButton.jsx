@@ -4,7 +4,7 @@ import { Purchases } from '@revenuecat/purchases-capacitor';
 import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth';
 
-const REVENUECAT_API_KEY = 'test_UofZGdJGdefWMDYvQkkSz1GEort';
+const REVENUECAT_API_KEY = 'appl_qXfdxBRudYmFMExigvXkKYtwVez';
 
 export default function ApplePaymentButton() {
   const { user } = useAuth();
