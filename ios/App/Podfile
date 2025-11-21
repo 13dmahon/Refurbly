@@ -13,6 +13,7 @@ def capacitor_pods
   pod 'CapacitorFirebaseFirestore', :path => '../../node_modules/@capacitor-firebase/firestore'
   pod 'CapacitorFirebaseFunctions', :path => '../../node_modules/@capacitor-firebase/functions'
   pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
+  pod 'RevenuecatPurchasesCapacitor', :path => '../../node_modules/@revenuecat/purchases-capacitor'
 end
 
 target 'App' do

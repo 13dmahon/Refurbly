@@ -1,160 +1,64 @@
 import { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import Purchases from '@revenuecat/purchases-capacitor';
 import { FirestoreWrapper } from '../services/firebase-wrapper';
 import { useAuth } from '../hooks/useAuth';
 
-const PRODUCT_ID = 'premium_lifetime';
+const REVENUECAT_API_KEY = 'test_UofZGdJGdefWMDYvQkkSz1GEort';
 
 export default function ApplePaymentButton() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [product, setProduct] = useState(null);
-  const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [initError, setInitError] = useState('');
-  const [InAppPurchases, setInAppPurchases] = useState(null);
 
   const isIOS = Capacitor.getPlatform() === 'ios';
 
   useEffect(() => {
-    if (isIOS && Capacitor.isNativePlatform()) {
-      // Dynamically import only on native iOS
-      import('expo-in-app-purchases')
-        .then(module => {
-          console.log('✅ IAP module loaded');
-          setInAppPurchases(module);
-        })
-        .catch(err => {
-          console.error('Failed to load IAP module:', err);
-          setInitError('IAP module not available');
-        });
+    if (isIOS && Capacitor.isNativePlatform() && user) {
+      initializeRevenueCat();
     }
-  }, [isIOS]);
+  }, [isIOS, user]);
 
-  useEffect(() => {
-    if (InAppPurchases) {
-      initializeIAP();
-    }
-    
-    return () => {
-      if (connected && InAppPurchases) {
-        InAppPurchases.disconnectAsync().catch(e => {
-          console.log('Disconnect error (safe to ignore):', e);
-        });
-      }
-    };
-  }, [InAppPurchases]);
-
-  const initializeIAP = async () => {
-    if (!InAppPurchases) return;
-    
+  const initializeRevenueCat = async () => {
     try {
-      console.log('🛒 Initializing In-App Purchases...');
+      console.log('🛒 Initializing RevenueCat...');
       
-      await InAppPurchases.connectAsync();
-      setConnected(true);
-      console.log('✅ Connected to App Store');
-
-      const { responseCode, results } = await InAppPurchases.getProductsAsync([PRODUCT_ID]);
+      await Purchases.configure({
+        apiKey: REVENUECAT_API_KEY,
+        appUserID: user.uid
+      });
       
-      console.log('📦 Product fetch response:', responseCode);
-      console.log('📦 Products:', results);
+      console.log('✅ RevenueCat configured');
 
-      if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-        setProduct(results[0]);
-        console.log('✅ Loaded product:', results[0].title, results[0].price);
-      } else {
-        console.error('❌ No products found. Response code:', responseCode);
-        setInitError('Product not available. Please check App Store Connect setup.');
-      }
+      const offerings = await Purchases.getOfferings();
+      console.log('📦 Offerings:', offerings);
 
-      InAppPurchases.setPurchaseListener(handlePurchaseUpdate);
-      console.log('✅ Purchase listener set');
-
-    } catch (error) {
-      console.error('❌ IAP initialization error:', error);
-      setInitError('Unable to connect to App Store. Please try again later.');
-    }
-  };
-
-  const handlePurchaseUpdate = ({ responseCode, results, errorCode }) => {
-    if (!InAppPurchases) return;
-    
-    console.log('🔔 Purchase update:', { responseCode, errorCode, results });
-
-    if (responseCode === InAppPurchases.IAPResponseCode.OK) {
-      results?.forEach(purchase => {
-        if (!purchase.acknowledged) {
-          console.log('✅ New purchase detected:', purchase);
-          finalizePurchase(purchase);
+      if (offerings.current && offerings.current.availablePackages.length > 0) {
+        const lifetimePackage = offerings.current.availablePackages.find(
+          pkg => pkg.identifier === '$rc_lifetime'
+        );
+        
+        if (lifetimePackage) {
+          setProduct(lifetimePackage);
+          console.log('✅ Loaded lifetime package:', lifetimePackage.product.title, lifetimePackage.product.priceString);
+        } else {
+          console.error('❌ Lifetime package not found');
+          setInitError('Premium package not available');
         }
-      });
-    } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-      console.log('🚫 User canceled purchase');
-      setLoading(false);
-      setError('');
-    } else if (responseCode === InAppPurchases.IAPResponseCode.DEFERRED) {
-      console.log('⏳ Purchase deferred (Ask to Buy enabled)');
-      setLoading(false);
-      setError('Purchase is pending approval. Check back later.');
-    } else {
-      console.error('❌ Purchase failed:', errorCode);
-      setLoading(false);
-      setError('Purchase failed. Please try again.');
-    }
-  };
-
-  const finalizePurchase = async (purchase) => {
-    if (!InAppPurchases) return;
-    
-    try {
-      console.log('💾 Finalizing purchase...');
-      
-      if (!user) {
-        throw new Error('User not authenticated');
+      } else {
+        console.error('❌ No offerings available');
+        setInitError('No products available');
       }
-
-      await FirestoreWrapper.updateDoc('users', user.uid, {
-        isPremium: true,
-        premiumSince: new Date().toISOString(),
-        paymentProvider: 'apple',
-        purchaseType: 'lifetime',
-        transactionId: purchase.transactionId,
-        transactionDate: purchase.transactionDate,
-        productId: purchase.productId,
-        lastUpdated: new Date().toISOString()
-      });
-
-      console.log('✅ Firestore updated with premium status');
-
-      await InAppPurchases.finishTransactionAsync(purchase, true);
-      console.log('✅ Transaction finished');
-
-      setLoading(false);
-      setError('');
-      
-      alert('🎉 Success! Premium activated!\n\nYou now have lifetime access to all features.');
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
 
     } catch (error) {
-      console.error('❌ Error finalizing purchase:', error);
-      setLoading(false);
-      setError('Activation failed. Please contact support with your transaction ID.');
-      
-      try {
-        await InAppPurchases.finishTransactionAsync(purchase, false);
-      } catch (e) {
-        console.error('Failed to finish transaction:', e);
-      }
+      console.error('❌ RevenueCat initialization error:', error);
+      setInitError('Unable to connect to App Store');
     }
   };
 
   const handlePurchase = async () => {
-    if (!InAppPurchases) return;
-    
     if (!product) {
       setError('Product not loaded. Please close and reopen the app.');
       return;
@@ -169,13 +73,38 @@ export default function ApplePaymentButton() {
     setError('');
     
     try {
-      console.log('🛒 Starting purchase for:', PRODUCT_ID);
-      await InAppPurchases.purchaseItemAsync(PRODUCT_ID);
+      console.log('🛒 Starting purchase...');
+      
+      const purchaseResult = await Purchases.purchasePackage({
+        aPackage: product
+      });
+
+      console.log('✅ Purchase successful:', purchaseResult);
+
+      // Update Firestore
+      await FirestoreWrapper.updateDoc('users', user.uid, {
+        isPremium: true,
+        premiumSince: new Date().toISOString(),
+        paymentProvider: 'apple',
+        purchaseType: 'lifetime',
+        revenueCatUserId: purchaseResult.customerInfo.originalAppUserId,
+        lastUpdated: new Date().toISOString()
+      });
+
+      console.log('✅ Firestore updated with premium status');
+
+      setLoading(false);
+      alert('🎉 Success! Premium activated!\n\nYou now have lifetime access to all features.');
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
     } catch (error) {
       console.error('❌ Purchase error:', error);
       setLoading(false);
       
-      if (error.code === 'E_USER_CANCELLED') {
+      if (error.code === 'USER_CANCELLED') {
         setError('');
       } else if (error.message?.includes('already own')) {
         setError('You already own this! Try "Restore Purchase" below.');
@@ -186,8 +115,6 @@ export default function ApplePaymentButton() {
   };
 
   const handleRestorePurchases = async () => {
-    if (!InAppPurchases) return;
-    
     if (!user) {
       setError('Please sign in first to restore purchases.');
       return;
@@ -199,45 +126,33 @@ export default function ApplePaymentButton() {
     try {
       console.log('🔄 Restoring purchases...');
       
-      const { responseCode, results } = await InAppPurchases.getPurchaseHistoryAsync();
-      
-      console.log('📜 Purchase history response:', responseCode);
-      console.log('📜 Purchase history:', results);
+      const customerInfo = await Purchases.restorePurchases();
+      console.log('📜 Customer info:', customerInfo);
 
-      if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-        const premiumPurchase = results.find(p => p.productId === PRODUCT_ID);
+      const hasLifetimeAccess = customerInfo.customerInfo.entitlements.active['pro'] !== undefined;
 
-        if (premiumPurchase) {
-          console.log('✅ Found previous purchase:', premiumPurchase);
-          
-          await FirestoreWrapper.updateDoc('users', user.uid, {
-            isPremium: true,
-            premiumSince: new Date(premiumPurchase.transactionDate).toISOString(),
-            paymentProvider: 'apple',
-            purchaseType: 'lifetime',
-            transactionId: premiumPurchase.transactionId,
-            transactionDate: premiumPurchase.transactionDate,
-            restoredAt: new Date().toISOString()
-          });
+      if (hasLifetimeAccess) {
+        console.log('✅ Found active entitlement');
+        
+        await FirestoreWrapper.updateDoc('users', user.uid, {
+          isPremium: true,
+          premiumSince: new Date().toISOString(),
+          paymentProvider: 'apple',
+          purchaseType: 'lifetime',
+          restoredAt: new Date().toISOString(),
+          revenueCatUserId: customerInfo.customerInfo.originalAppUserId
+        });
 
-          if (!premiumPurchase.acknowledged) {
-            await InAppPurchases.finishTransactionAsync(premiumPurchase, true);
-          }
-
-          setLoading(false);
-          alert('✅ Premium restored!\n\nYour lifetime access has been restored.');
-          
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-          
-        } else {
-          setLoading(false);
-          setError('No premium purchase found for this Apple ID.');
-        }
+        setLoading(false);
+        alert('✅ Premium restored!\n\nYour lifetime access has been restored.');
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+        
       } else {
         setLoading(false);
-        setError('No previous purchases found.');
+        setError('No premium purchase found for this Apple ID.');
       }
     } catch (error) {
       console.error('❌ Restore error:', error);
@@ -256,7 +171,7 @@ export default function ApplePaymentButton() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-sm text-amber-800">{initError}</p>
           <p className="text-xs text-amber-700 mt-2">
-            This usually means the product hasn't been set up in App Store Connect yet.
+            This usually means the product hasn't been set up yet.
           </p>
         </div>
         <p className="text-xs text-blue-600 text-center">
@@ -266,20 +181,11 @@ export default function ApplePaymentButton() {
     );
   }
 
-  if (!product && !initError && InAppPurchases) {
+  if (!product && !initError) {
     return (
       <div className="text-center py-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
         <p className="text-sm text-gray-600">Loading pricing...</p>
-      </div>
-    );
-  }
-
-  if (!InAppPurchases) {
-    return (
-      <div className="text-center py-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-        <p className="text-sm text-gray-600">Initializing...</p>
       </div>
     );
   }
@@ -296,7 +202,7 @@ export default function ApplePaymentButton() {
             <span className="animate-spin">⏳</span> Processing...
           </span>
         ) : (
-          <span>🔓 Unlock Premium - {product?.price || '£9.99'}</span>
+          <span>🔓 Unlock Premium - {product?.product?.priceString || '£9.99'}</span>
         )}
       </button>
 
