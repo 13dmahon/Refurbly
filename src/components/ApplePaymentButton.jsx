@@ -45,16 +45,16 @@ export default function ApplePaymentButton() {
           console.log('✅ Loaded lifetime package:', lifetimePackage.product.title, lifetimePackage.product.priceString);
         } else {
           console.error('❌ Lifetime package not found');
-          setInitError('Premium package not available');
+          setInitError('Premium package not available. Please try again later.');
         }
       } else {
         console.error('❌ No offerings available');
-        setInitError('No products available');
+        setInitError('No products available. Please try again later.');
       }
 
     } catch (error) {
       console.error('❌ RevenueCat initialization error:', error);
-      setInitError('Unable to connect to App Store');
+      setInitError('Unable to connect to App Store. Please try again later.');
     }
   };
 
@@ -170,12 +170,9 @@ export default function ApplePaymentButton() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-sm text-amber-800">{initError}</p>
           <p className="text-xs text-amber-700 mt-2">
-            This usually means the product hasn't been set up yet.
+            Please close and reopen the app, or contact support if the issue persists.
           </p>
         </div>
-        <p className="text-xs text-blue-600 text-center">
-          💡 You can still unlock premium at refurbly.com
-        </p>
       </div>
     );
   }
