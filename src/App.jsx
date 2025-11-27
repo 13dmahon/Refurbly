@@ -20,7 +20,6 @@ function App() {
 
   const maxQuotes = isPremium ? 10 : 5;
 
-  // ⬇️ Extra-safe padding so headers & content sit below the notch / status bar
   const headerSafeAreaStyle = {
     paddingTop: 'calc(env(safe-area-inset-top, 20px) + 0.75rem)',
   };
@@ -127,7 +126,6 @@ function App() {
           />
         </div>
 
-        {/* small top padding under the header */}
         <div className="p-6 pt-4 sm:pt-6">
           <PricingEditor />
         </div>
@@ -279,7 +277,6 @@ function App() {
             )}
           </div>
 
-          {/* ⬇️ extra space under the header so the stepper / "Your Estimate" isn't too high */}
           <div className="p-6 pt-5 sm:pt-7">
             <Refurbly
               onQuoteSaved={handleQuoteSaved}
@@ -317,7 +314,6 @@ function App() {
             />
           </div>
 
-          {/* ⬇️ extra space under the header */}
           <div className="p-6 pt-5 sm:pt-7">
             <div className="max-w-6xl mx-auto">
               {!isPremium && savedQuotes.length >= 5 && (
@@ -386,50 +382,84 @@ function App() {
                   <p className="text-gray-600 mb-6">
                     Create your first quote to see it here
                   </p>
-                  <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-3xl">✨</span>
-                      <h3 className="text-xl font-bold text-blue-900">
-                        Upgrade to Premium - £9.99
-                      </h3>
+                  
+                  {/* Show different content based on premium status */}
+                  {isPremium ? (
+                    <div className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 max-w-2xl mx-auto">
+                      <div className="flex items-center justify-center gap-3 mb-4">
+                        <span className="text-3xl">🎉</span>
+                        <h3 className="text-xl font-bold text-green-800">
+                          Welcome to Premium!
+                        </h3>
+                      </div>
+                      <p className="text-green-700 mb-4">
+                        You have full access to all features. Create your first quote to get started!
+                      </p>
+                      <div className="grid md:grid-cols-2 gap-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Detailed room breakdowns</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Labour hours & rates</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Material costs & evidence</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Save up to 10 quotes</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-4 text-sm mb-6">
-                      <div className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">Detailed room breakdowns</span>
+                  ) : (
+                    <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 max-w-2xl mx-auto">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-3xl">✨</span>
+                        <h3 className="text-xl font-bold text-blue-900">
+                          Upgrade to Premium - £9.99
+                        </h3>
                       </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">Labour hours & rates</span>
+                      <div className="grid md:grid-cols-2 gap-4 text-sm mb-6">
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Detailed room breakdowns</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Labour hours & rates</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Material costs & evidence</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">Save up to 10 quotes</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600 font-bold">✓</span>
+                          <span className="text-gray-700">PDF export & sharing</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-700">Lifetime access</span>
+                        </div>
                       </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">Material costs & evidence</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">Save up to 10 quotes</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span className="text-gray-700">PDF export & sharing</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-gray-700">Lifetime access</span>
-                      </div>
+                      
+                      {Capacitor.getPlatform() === 'ios' ? (
+                        <button
+                          onClick={() => setCurrentView('unlock-premium')}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition"
+                        >
+                          🔓 Unlock Premium - £9.99
+                        </button>
+                      ) : (
+                        <PaymentButton quoteData={{}} compact={true} />
+                      )}
                     </div>
-                    
-                    {Capacitor.getPlatform() === 'ios' ? (
-                      <button
-                        onClick={() => setCurrentView('unlock-premium')}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition"
-                      >
-                        🔓 Unlock Premium - £9.99
-                      </button>
-                    ) : (
-                      <PaymentButton quoteData={{}} compact={true} />
-                    )}
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
