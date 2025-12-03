@@ -23,7 +23,7 @@ export default function HomePage({ onStartCalculator, onLoginSuccess }) {
           <div className="flex justify-center">
             <div 
               onClick={handleLogoTap}
-              className="bg-blue-600 text-white w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg cursor-pointer active:scale-95 transition"
+              className="bg-refurbly-navy text-white w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg cursor-pointer active:scale-95 transition"
             >
               🏠
             </div>
@@ -43,18 +43,18 @@ export default function HomePage({ onStartCalculator, onLoginSuccess }) {
             </p>
           </div>
           <div className="space-y-4 max-w-md mx-auto">
-            <button onClick={() => setShowAuthModal(true)} className="w-full bg-white border-2 border-gray-200 text-gray-900 py-4 px-6 rounded-xl font-semibold hover:border-blue-500 hover:bg-blue-50 transition shadow-sm flex items-center justify-center gap-3 group">
+            <button onClick={() => setShowAuthModal(true)} className="w-full bg-white border-2 border-gray-200 text-gray-900 py-4 px-6 rounded-xl font-semibold hover:border-refurbly-navy hover:bg-blue-50 transition shadow-sm flex items-center justify-center gap-3 group">
               <span className="text-2xl">👤</span>
               <div className="text-left">
                 <div className="font-bold">Login / Sign Up</div>
                 <div className="text-sm text-gray-500 font-normal">Get 5 free saved quotes</div>
               </div>
             </button>
-            <button onClick={onStartCalculator} className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-blue-700 transition shadow-lg flex items-center justify-center gap-3">
+            <button onClick={onStartCalculator} className="w-full bg-refurbly-navy text-white py-4 px-6 rounded-xl font-semibold hover:bg-refurbly-charcoal transition shadow-lg flex items-center justify-center gap-3">
               <span className="text-2xl">🚀</span>
               <div className="text-left">
                 <div className="font-bold">Start Calculator</div>
-                <div className="text-sm text-blue-100 font-normal">No login required</div>
+                <div className="text-sm text-refurbly-mist font-normal">No login required</div>
               </div>
             </button>
           </div>

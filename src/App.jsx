@@ -85,7 +85,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-refurbly-navy mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
@@ -246,13 +246,13 @@ function App() {
               >
                 🏠
               </button>
-              <h1 className="text-xl font-bold text-gray-900">Refurbly</h1>
+              <img src="/refurbly-logo.jpg" alt="Refurbly" className="h-8" />
             </div>
 
             {!user && (
               <button
                 onClick={() => setCurrentView('home')}
-                className="px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 rounded-lg transition"
+                className="px-4 py-2 text-refurbly-navy font-semibold hover:bg-blue-50 rounded-lg transition"
               >
                 Sign In
               </button>
@@ -265,7 +265,7 @@ function App() {
                     setEditingQuote(null);
                     setCurrentView('dashboard');
                   }}
-                  className="px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 rounded-lg transition"
+                  className="px-4 py-2 text-refurbly-navy font-semibold hover:bg-blue-50 rounded-lg transition"
                 >
                   My Quotes
                 </button>
@@ -317,7 +317,7 @@ function App() {
           <div className="p-6 pt-5 sm:pt-7">
             <div className="max-w-6xl mx-auto">
               {!isPremium && savedQuotes.length >= 5 && (
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 mb-6 text-white shadow-xl">
+                <div className="bg-gradient-to-br from-refurbly-navy to-refurbly-charcoal rounded-2xl p-8 mb-6 text-white shadow-xl">
                   <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex-1">
                       <h2 className="text-2xl font-bold mb-2">
@@ -334,7 +334,7 @@ function App() {
                       {Capacitor.getPlatform() === 'ios' ? (
                         <button
                           onClick={() => setCurrentView('unlock-premium')}
-                          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition"
+                          className="w-full bg-refurbly-navy text-white py-2 px-4 rounded-lg font-semibold hover:bg-refurbly-charcoal transition"
                         >
                           🔓 Unlock Premium
                         </button>
@@ -364,7 +364,7 @@ function App() {
                     setEditingQuote(null);
                     setCurrentView('calculator');
                   }}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+                  className="bg-refurbly-navy text-white px-6 py-3 rounded-lg font-semibold hover:bg-refurbly-charcoal transition"
                 >
                   + Create New Quote
                 </button>
@@ -372,7 +372,7 @@ function App() {
 
               {loadingQuotes ? (
                 <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-refurbly-navy mx-auto"></div>
                   <p className="mt-4 text-gray-600">Loading quotes...</p>
                 </div>
               ) : savedQuotes.length === 0 ? (
@@ -451,7 +451,7 @@ function App() {
                       {Capacitor.getPlatform() === 'ios' ? (
                         <button
                           onClick={() => setCurrentView('unlock-premium')}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition"
+                          className="w-full bg-refurbly-navy hover:bg-refurbly-charcoal text-white font-bold py-3 px-6 rounded-lg transition"
                         >
                           🔓 Unlock Premium - £9.99
                         </button>
@@ -502,7 +502,7 @@ function App() {
                       <div className="border-t pt-4 mb-4">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">Total estimate:</span>
-                          <span className="text-2xl font-bold text-blue-600">
+                          <span className="text-2xl font-bold text-refurbly-navy">
                             £{quote.estimate?.toLocaleString() || '0'}
                           </span>
                         </div>
@@ -517,7 +517,7 @@ function App() {
                           <>
                             <button
                               onClick={() => setSelectedQuoteId(quote.id)}
-                              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+                              className="flex-1 bg-refurbly-navy text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-refurbly-charcoal transition"
                             >
                               📊 View Details
                             </button>
@@ -532,7 +532,7 @@ function App() {
                           Capacitor.getPlatform() === 'ios' ? (
                             <button
                               onClick={() => setCurrentView('unlock-premium')}
-                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-bold hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2 shadow-md"
+                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-bold hover:from-refurbly-navy hover:to-refurbly-charcoal transition flex items-center justify-center gap-2 shadow-md"
                             >
                               <span className="text-xl">🔓</span>
                               Unlock - £9.99

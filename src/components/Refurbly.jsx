@@ -52,7 +52,11 @@ const RATES = {
   windows: {
     hourlyRate: { budget: 30, standard: 35, premium: 45 },
     hoursPerWindow: { budget: 2, standard: 3, premium: 4 },
-    materialsPerWindow: { budget: 500, standard: 800, premium: 1400 }
+  },
+  protection: {
+    dustSheets: { perSqm: 0.5, perRoom: 15 },
+    correx: { perSqm: 3, perRoom: 50 },
+    masking: { perSqm: 1, perRoom: 25 }
   }
 };
 
@@ -126,6 +130,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     needsRewire: false,
     needsHeating: false,
     needsWindows: false,
+    needsProtection: false,
+    protectionDustSheets: true,
+    protectionCorrex: true,
+    protectionMasking: true,
+    manualTotalSqm: "",
+    manualRoomSqm: {},
   });
 
   // 🔥 Load pricing templates from Firestore on mount
@@ -164,6 +174,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         quality: editingQuote.quality || 'standard',
         needsDecoration: editingQuote.needsDecoration !== false,
         needsFlooring: editingQuote.needsFlooring !== false,
+        needsProtection: editingQuote.needsProtection || false,
+        protectionDustSheets: editingQuote.protectionDustSheets !== false,
+        protectionCorrex: editingQuote.protectionCorrex !== false,
+        protectionMasking: editingQuote.protectionMasking !== false,
+        manualTotalSqm: editingQuote.manualTotalSqm || "",
+        manualRoomSqm: editingQuote.manualRoomSqm || {},
         needsPlastering: editingQuote.needsPlastering || false,
         needsKitchen: editingQuote.needsKitchen !== false,
         needsBathroom: editingQuote.needsBathroom !== false,
@@ -521,10 +537,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         <div className="flex items-center mb-2">
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center flex-1">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s <= step ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s <= step ? 'bg-refurbly-navy text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
                 {s}
               </div>
-              {s < 3 && <div className={`h-1 flex-1 mx-2 rounded transition-all ${s < step ? 'bg-blue-600' : 'bg-slate-200'}`} />}
+              {s < 3 && <div className={`h-1 flex-1 mx-2 rounded transition-all ${s < step ? 'bg-refurbly-navy' : 'bg-slate-200'}`} />}
             </div>
           ))}
         </div>
@@ -553,7 +569,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       key={type}
                       type="button"
                       onClick={() => updateForm('propertyType', type)}
-                      className={`p-4 rounded-xl border-2 font-medium transition-all capitalize ${formData.propertyType === type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
+                      className={`p-4 rounded-xl border-2 font-medium transition-all capitalize ${formData.propertyType === type ? 'border-refurbly-navy bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
                     >
                       {type}
                     </button>
@@ -567,7 +583,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   <select
                     value={formData.bedrooms}
                     onChange={(e) => updateForm('bedrooms', e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-refurbly-navy focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                   >
                     {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -577,7 +593,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   <select
                     value={formData.bathrooms}
                     onChange={(e) => updateForm('bathrooms', e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-refurbly-navy focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                   >
                     {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -592,9 +608,24 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   type="text"
                   value={formData.location}
                   onChange={(e) => updateForm('location', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-refurbly-navy focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                   placeholder="e.g., 123 Oak Street, Manchester"
                 />
+              </div>
+              <div className="bg-green-50 rounded-xl p-4 border-2 border-dashed border-green-200">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Total Floor Area (sqm) <span className="font-normal text-slate-500">(Optional - we'll calculate if not provided)</span>
+                </label>
+                <input
+                  type="number"
+                  value={formData.manualTotalSqm}
+                  onChange={(e) => updateForm('manualTotalSqm', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-refurbly-navy focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                  placeholder="Auto: 75 sqm"
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                  If not specified, we'll estimate based on your property type
+                </p>
               </div>
             </div>
           </div>
@@ -618,13 +649,13 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               ].map((item) => (
                 <label
                   key={item.field}
-                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData[item.field] ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData[item.field] ? 'border-refurbly-navy bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
                 >
                   <input
                     type="checkbox"
                     checked={formData[item.field]}
                     onChange={(e) => updateForm(item.field, e.target.checked)}
-                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-blue-600"
+                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-refurbly-navy"
                   />
                   <div className="flex-1">
                     <div className="font-semibold text-slate-900">{item.label}</div>
@@ -646,7 +677,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                     key={q.value}
                     type="button"
                     onClick={() => updateForm('quality', q.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${formData.quality === q.value ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${formData.quality === q.value ? 'border-refurbly-navy bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
                   >
                     <div className="text-2xl mb-2">{q.icon}</div>
                     <div className="font-semibold text-slate-900">{q.label}</div>
@@ -681,7 +712,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
             {!isPremium ? (
               <>
                 {/* FREE VERSION - ROUNDED TO £5K */}
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                <div className="bg-gradient-to-br from-refurbly-navy to-refurbly-charcoal rounded-xl p-6 text-white shadow-lg mb-6">
                   <div className="text-sm opacity-90 mb-1">Estimated Cost Range</div>
                   <div className="text-4xl font-bold">
                     £{estimate.rangeMin.toLocaleString()} - £{estimate.rangeMax.toLocaleString()}
@@ -742,7 +773,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
             ) : (
               <>
                 {/* PREMIUM VERSION - EXACT WITH EDITING */}
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white shadow-lg mb-6">
+                <div className="bg-gradient-to-br from-refurbly-navy to-refurbly-charcoal rounded-xl p-6 text-white shadow-lg mb-6">
                   <div className="text-sm opacity-90 mb-1">Total Estimated Cost</div>
                   <div className="text-4xl font-bold">£{estimate.total.toLocaleString()}</div>
                   <div className="text-sm opacity-75 mt-2">Including 15% contingency</div>
@@ -756,7 +787,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                     </div>
                     <button
                       onClick={() => setShowAdjustModal(true)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-semibold transition-all"
+                      className="px-4 py-2 bg-refurbly-navy hover:bg-refurbly-charcoal text-white text-sm rounded-lg font-semibold transition-all"
                     >
                       ✏️ Adjust Costs
                     </button>
@@ -786,12 +817,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                           {room.source.links && room.source.links.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-1">
                               {room.source.links.map((link, i) => (
-                                <a
+                                  <a
                                   key={i}
                                   href={link.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                  className="text-xs text-refurbly-navy hover:text-blue-800 underline"
                                 >
                                   {link.label} →
                                 </a>
@@ -866,7 +897,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
             <button
               type="button"
               onClick={handleNext}
-              className="flex-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-lg"
+              className="flex-1 px-6 py-3 rounded-xl bg-refurbly-navy hover:bg-refurbly-charcoal text-white font-semibold transition-all shadow-lg"
             >
               {step === 2 ? 'Get Estimate' : 'Next'}
             </button>
@@ -897,7 +928,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       type="number"
                       value={adjustments[room.id] || room.total}
                       onChange={(e) => handleAdjustCost(room.id, e.target.value)}
-                      className="flex-1 px-4 py-2 rounded-lg border-2 border-slate-200 focus:border-blue-600 outline-none"
+                      className="flex-1 px-4 py-2 rounded-lg border-2 border-slate-200 focus:border-refurbly-navy outline-none"
                       placeholder="Enter cost"
                     />
                     <button
@@ -941,7 +972,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                 {!showAddItemForm ? (
                   <button
                     onClick={() => setShowAddItemForm(true)}
-                    className="w-full px-4 py-3 border-2 border-dashed border-slate-300 hover:border-blue-600 hover:bg-blue-50 rounded-xl text-slate-600 hover:text-blue-600 font-semibold transition-all"
+                    className="w-full px-4 py-3 border-2 border-dashed border-slate-300 hover:border-refurbly-navy hover:bg-blue-50 rounded-xl text-slate-600 hover:text-refurbly-navy font-semibold transition-all"
                   >
                     + Add Custom Item
                   </button>
@@ -951,21 +982,21 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       type="text"
                       value={newItemName}
                       onChange={(e) => setNewItemName(e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-refurbly-navy outline-none"
                       placeholder="Item name (e.g., Loft Insulation)"
                     />
                     <input
                       type="number"
                       value={newItemCost}
                       onChange={(e) => setNewItemCost(e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-refurbly-navy outline-none"
                       placeholder="Cost (£)"
                     />
                     <input
                       type="text"
                       value={newItemDesc}
                       onChange={(e) => setNewItemDesc(e.target.value)}
-                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-600 outline-none"
+                      className="w-full px-4 py-2 rounded-lg border-2 border-blue-200 focus:border-refurbly-navy outline-none"
                       placeholder="Description (optional)"
                     />
                     <div className="flex gap-2">
@@ -982,7 +1013,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       </button>
                       <button
                         onClick={handleAddCustomItem}
-                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+                        className="flex-1 px-4 py-2 bg-refurbly-navy hover:bg-refurbly-charcoal text-white rounded-lg font-semibold"
                       >
                         Add Item
                       </button>
@@ -993,7 +1024,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
               <button
                 onClick={() => setShowAdjustModal(false)}
-                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all mt-4"
+                className="w-full px-6 py-3 bg-refurbly-navy hover:bg-refurbly-charcoal text-white font-semibold rounded-xl transition-all mt-4"
               >
                 Done
               </button>
