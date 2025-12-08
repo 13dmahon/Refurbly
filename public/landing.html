@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Refurbly - Instant Property Refurbishment Estimates</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      background-attachment: fixed;
+      position: relative;
+      overflow-x: hidden;
+    }
+    
+    .bg-image {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://images.unsplash.com/photo-1558036117-15d82a90b9b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80') center/cover no-repeat;
+      z-index: -2;
+    }
+    
+    .bg-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(26, 26, 46, 0.92) 0%, rgba(22, 33, 62, 0.88) 50%, rgba(15, 52, 96, 0.85) 100%);
+      z-index: -1;
+    }
+    
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 1rem;
+    }
+    
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 0.6rem 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+    
+    .logo-text {
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: white;
+    }
+    
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .nav-link {
+      color: rgba(255, 255, 255, 0.8);
+      text-decoration: none;
+      font-weight: 500;
+      padding: 0.5rem 0.75rem;
+      transition: color 0.2s;
+      font-size: 0.9rem;
+    }
+    
+    .nav-link:hover {
+      color: white;
+    }
+    
+    .cta-btn {
+      background: white;
+      color: #1a1a2e;
+      padding: 0.6rem 1.25rem;
+      border-radius: 100px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(255, 255, 255, 0.2);
+    }
+    
+    .main {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 7rem 1.5rem 3rem;
+      text-align: center;
+    }
+    
+    .headline {
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 800;
+      color: white;
+      margin-bottom: 1rem;
+      line-height: 1.1;
+    }
+    
+    .headline-highlight {
+      background: linear-gradient(135deg, #60a5fa, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subheadline {
+      font-size: clamp(1rem, 3vw, 1.25rem);
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 2.5rem;
+      max-width: 500px;
+      padding: 0 1rem;
+    }
+    
+    .input-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 1rem;
+      width: 100%;
+      max-width: 450px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+      margin-bottom: 1.5rem;
+    }
+    
+    .input-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    
+    .input-field {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      padding: 0.75rem;
+      outline: none;
+      font-family: inherit;
+      color: #1a1a2e;
+      min-width: 0;
+    }
+    
+    .input-field::placeholder {
+      color: #9ca3af;
+    }
+    
+    .submit-btn {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .submit-btn:hover {
+      transform: scale(1.05);
+    }
+    
+    .submit-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: white;
+    }
+    
+    .quick-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+      padding: 0 0.5rem;
+    }
+    
+    .quick-option {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 0.6rem 1.25rem;
+      border-radius: 100px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    
+    .quick-option:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-2px);
+    }
+    
+    .app-buttons {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+      padding: 0 0.5rem;
+    }
+    
+    .app-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 0.6rem 1.25rem;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    
+    .app-btn:hover {
+      background: rgba(0, 0, 0, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    .app-btn-icon {
+      font-size: 1.5rem;
+    }
+    
+    .app-btn-text {
+      text-align: left;
+    }
+    
+    .app-btn-small {
+      font-size: 0.6rem;
+      color: rgba(255, 255, 255, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .app-btn-large {
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .stat {
+      text-align: center;
+    }
+    
+    .stat-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: white;
+    }
+    
+    .stat-label {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.75rem;
+    }
+    
+    .features {
+      padding: 4rem 1.5rem;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    
+    .features-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .features-title {
+      text-align: center;
+      font-size: clamp(1.75rem, 5vw, 2.5rem);
+      font-weight: 800;
+      color: white;
+      margin-bottom: 2.5rem;
+    }
+    
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    
+    .feature-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 1.5rem;
+      transition: all 0.3s;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.12);
+    }
+    
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .feature-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 0.4rem;
+    }
+    
+    .feature-desc {
+      color: rgba(255, 255, 255, 0.6);
+      line-height: 1.5;
+      font-size: 0.9rem;
+    }
+    
+    .pricing {
+      padding: 4rem 1.5rem;
+    }
+    
+    .pricing-inner {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    .pricing-title {
+      text-align: center;
+      font-size: clamp(1.75rem, 5vw, 2.5rem);
+      font-weight: 800;
+      color: white;
+      margin-bottom: 0.75rem;
+    }
+    
+    .pricing-subtitle {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 2.5rem;
+    }
+    
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+    
+    .pricing-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 1.75rem;
+      text-align: center;
+    }
+    
+    .pricing-card.featured {
+      background: rgba(59, 130, 246, 0.2);
+      border: 2px solid rgba(59, 130, 246, 0.5);
+    }
+    
+    .pricing-badge {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+      padding: 0.2rem 0.75rem;
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: inline-block;
+      margin-bottom: 0.75rem;
+    }
+    
+    .pricing-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 0.4rem;
+    }
+    
+    .pricing-price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 0.25rem;
+    }
+    
+    .pricing-period {
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 1.5rem;
+      text-align: left;
+    }
+    
+    .pricing-features li {
+      color: rgba(255, 255, 255, 0.8);
+      padding: 0.4rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+    }
+    
+    .pricing-features li::before {
+      content: "✓";
+      color: #22c55e;
+      font-weight: bold;
+    }
+    
+    .pricing-cta {
+      width: 100%;
+      padding: 0.875rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: block;
+    }
+    
+    .pricing-cta.primary {
+      background: white;
+      color: #1a1a2e;
+      border: none;
+    }
+    
+    .pricing-cta.secondary {
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .pricing-cta:hover {
+      transform: translateY(-2px);
+    }
+    
+    .footer {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.5);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.85rem;
+    }
+    
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .footer-links a {
+      color: rgba(255, 255, 255, 0.6);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .footer-links a:hover {
+      color: white;
+    }
+    
+    /* Mobile specific fixes */
+    @media (max-width: 640px) {
+      .header {
+        padding: 0.75rem;
+      }
+      
+      .header-inner {
+        padding: 0.5rem 0.75rem;
+        border-radius: 16px;
+      }
+      
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+      }
+      
+      .logo-text {
+        font-size: 1.1rem;
+      }
+      
+      .nav-link {
+        display: none;
+      }
+      
+      .cta-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+      }
+      
+      .main {
+        padding: 6rem 1rem 2.5rem;
+      }
+      
+      .stats {
+        gap: 1.5rem;
+      }
+      
+      .stat-value {
+        font-size: 1.25rem;
+      }
+      
+      .app-buttons {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .app-btn {
+        width: 100%;
+        max-width: 280px;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-image"></div>
+  <div class="bg-overlay"></div>
+  
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🏠</div>
+        <span class="logo-text">Refurbly</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#pricing" class="nav-link">Pricing</a>
+        <a href="/app.html" class="cta-btn">Launch App</a>
+      </nav>
+    </div>
+  </header>
+  
+  <main class="main">
+    <h1 class="headline">
+      What's your<br>
+      <span class="headline-highlight">refurb budget?</span>
+    </h1>
+    <p class="subheadline">
+      Get instant, accurate renovation estimates backed by real UK trade rates
+    </p>
+    
+    <div class="input-card">
+      <div class="input-row">
+        <input type="text" class="input-field" placeholder="I'm buying a 3 bed house..." id="propertyInput">
+        <button class="submit-btn" onclick="window.location.href='/app.html'">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="quick-options">
+      <a href="/app.html" class="quick-option">2 bed flat</a>
+      <a href="/app.html" class="quick-option">3 bed house</a>
+      <a href="/app.html" class="quick-option">Victorian terrace</a>
+      <a href="/app.html" class="quick-option">New build</a>
+    </div>
+    
+    <div class="app-buttons">
+      <a href="https://apps.apple.com/gb/app/refurbly/id6754726502" class="app-btn" target="_blank">
+        <span class="app-btn-icon"></span>
+        <div class="app-btn-text">
+          <div class="app-btn-small">Download on the</div>
+          <div class="app-btn-large">App Store</div>
+        </div>
+      </a>
+      <a href="/app.html" class="app-btn">
+        <span class="app-btn-icon">🌐</span>
+        <div class="app-btn-text">
+          <div class="app-btn-small">Use in</div>
+          <div class="app-btn-large">Browser</div>
+        </div>
+      </a>
+    </div>
+    
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value">10K+</div>
+        <div class="stat-label">Quotes Generated</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">🏡</div>
+        <div class="stat-value">£2B+</div>
+        <div class="stat-label">Property Valued</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value">4.9</div>
+        <div class="stat-label">App Rating</div>
+      </div>
+    </div>
+  </main>
+  
+  <section class="features" id="features">
+    <div class="features-inner">
+      <h2 class="features-title">Why choose Refurbly?</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3 class="feature-title">Instant Estimates</h3>
+          <p class="feature-desc">Get accurate refurbishment costs in seconds, not days. No waiting for surveyors.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3 class="feature-title">Room-by-Room Breakdown</h3>
+          <p class="feature-desc">See exactly where your money goes - kitchen, bathrooms, flooring, electrics and more.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💷</div>
+          <h3 class="feature-title">Real UK Trade Rates</h3>
+          <p class="feature-desc">Powered by Checkatrade, Knight Frank, and verified contractor data.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔗</div>
+          <h3 class="feature-title">Evidence Links</h3>
+          <p class="feature-desc">Every estimate comes with source links so you can verify the costs yourself.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✏️</div>
+          <h3 class="feature-title">Fully Adjustable</h3>
+          <p class="feature-desc">Customise labour rates, materials, and add your own line items.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💾</div>
+          <h3 class="feature-title">Save & Compare</h3>
+          <p class="feature-desc">Save multiple quotes and compare different properties side by side.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <section class="pricing" id="pricing">
+    <div class="pricing-inner">
+      <h2 class="pricing-title">Simple Pricing</h2>
+      <p class="pricing-subtitle">Start free, upgrade when you need more</p>
+      
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <div class="pricing-name">Free</div>
+          <div class="pricing-price">£0</div>
+          <div class="pricing-period">Forever</div>
+          <ul class="pricing-features">
+            <li>5 saved quotes</li>
+            <li>Rounded estimates</li>
+            <li>Basic breakdown</li>
+          </ul>
+          <a href="/app.html" class="pricing-cta secondary">Get Started</a>
+        </div>
+        
+        <div class="pricing-card featured">
+          <div class="pricing-badge">BEST VALUE</div>
+          <div class="pricing-name">Premium</div>
+          <div class="pricing-price">£9.99</div>
+          <div class="pricing-period">One-time payment</div>
+          <ul class="pricing-features">
+            <li>10 saved quotes</li>
+            <li>Exact cost breakdown</li>
+            <li>Labour hours & rates</li>
+            <li>Evidence source links</li>
+            <li>Edit & adjust quotes</li>
+            <li>Lifetime access</li>
+          </ul>
+          <a href="/app.html" class="pricing-cta primary">Unlock Premium</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="mailto:support@refurbly.app">Contact</a>
+    </div>
+    <p>© 2025 Refurbly. Built for property professionals.</p>
+  </footer>
+</body>
+</html>
