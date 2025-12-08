@@ -34,12 +34,12 @@ export default function HomePage({ onStartCalculator, onLoginSuccess }) {
           <div className="max-w-md w-full text-center space-y-8">
             {/* Logo */}
             <div className="flex justify-center">
-              <div 
+              <img 
+                src="/refurbly-logo.jpg" 
+                alt="Refurbly" 
                 onClick={handleLogoTap}
-                className="bg-gradient-to-br from-blue-500 to-blue-700 text-white w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-2xl cursor-pointer active:scale-95 transition-all border border-white/20"
-              >
-                🏠
-              </div>
+                className="w-20 h-20 rounded-2xl shadow-2xl cursor-pointer active:scale-95 transition-all object-cover"
+              />
             </div>
             
             {/* Title */}
