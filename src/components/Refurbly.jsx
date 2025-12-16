@@ -5,14 +5,12 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { Capacitor } from '@capacitor/core';
 import ApplePaymentButton from './ApplePaymentButton';
 
-// Auto-calculate sqm from property details
 const AUTO_SQM = {
   flat: { 1: 45, 2: 65, 3: 85, 4: 100, 5: 120 },
   house: { 2: 75, 3: 95, 4: 120, 5: 150 },
   maisonette: { 2: 70, 3: 90, 4: 110, 5: 135 }
 };
 
-// FALLBACK RATES (used if Firestore templates don't load)
 const RATES = {
   decoration: {
     hourlyRate: { budget: 30, standard: 35, premium: 45 },
@@ -61,7 +59,6 @@ const RATES = {
   }
 };
 
-// FALLBACK SOURCES
 const SOURCES = {
   labour: {
     text: "Checkatrade & MyBuilder 2025 London rates",
@@ -143,13 +140,11 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       try {
         const { collection, getDocs } = await import('firebase/firestore');
         const { db } = await import('../config/firebase');
-        
         const snap = await getDocs(collection(db, 'pricingTemplates'));
         const map = {};
         snap.docs.forEach((doc) => {
           map[doc.id] = { id: doc.id, ...doc.data() };
         });
-        
         console.log('✅ Loaded pricing templates from Firestore:', Object.keys(map));
         setPricingTemplates(map);
       } catch (e) {
@@ -159,7 +154,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         setTemplatesLoading(false);
       }
     };
-    
     loadTemplates();
   }, []);
 
@@ -201,13 +195,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     const bathrooms = parseInt(formData.bathrooms) || 1;
     const propertyType = formData.propertyType;
     const quality = formData.quality;
-    
     const totalSqm = AUTO_SQM[propertyType]?.[bedrooms] || 75;
     const estimatedWindows = bedrooms * 2 + 2;
-    
     let roomBreakdown = [];
-    
-    // KITCHEN
+
     if (formData.needsKitchen) {
       const tpl = pricingTemplates?.kitchen;
       const hours = tpl?.hours?.[quality] ?? RATES.kitchen.hours[quality];
@@ -215,10 +206,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materials = tpl?.materials?.[quality] ?? RATES.kitchen.materials[quality];
       const materialsDetails = tpl?.materialsDetails || 'Units & appliances';
       const source = tpl?.source || SOURCES.materials.kitchen;
-      
       const labour = hours * hourlyRate;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'kitchen',
         name: 'Kitchen',
@@ -230,8 +219,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // BATHROOMS
+
     if (formData.needsBathroom) {
       const tpl = pricingTemplates?.bathrooms;
       const hoursPerBathroom = tpl?.hoursPerBathroom?.[quality] ?? RATES.bathroom.hoursPerBathroom[quality];
@@ -239,12 +227,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materialsPerBathroom = tpl?.materialsPerBathroom?.[quality] ?? RATES.bathroom.materialsPerBathroom[quality];
       const materialsDetails = tpl?.materialsDetails || 'Suite & tiles';
       const source = tpl?.source || SOURCES.materials.bathroom;
-      
       const hours = hoursPerBathroom * bathrooms;
       const labour = hours * hourlyRate;
       const materials = materialsPerBathroom * bathrooms;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'bathrooms',
         name: `Bathroom${bathrooms > 1 ? 's' : ''} (${bathrooms})`,
@@ -256,8 +242,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // DECORATION
+
     if (formData.needsDecoration) {
       const tpl = pricingTemplates?.decoration;
       const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.decoration.hoursPerSqm;
@@ -267,12 +252,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
         : `Paint & materials (${totalSqm}sqm)`;
       const source = tpl?.source || SOURCES.materials.general;
-      
       const hours = Math.round(totalSqm * hoursPerSqm);
       const labour = hours * hourlyRate;
       const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'decoration',
         name: 'Decoration',
@@ -284,8 +267,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // FLOORING
+
     if (formData.needsFlooring) {
       const tpl = pricingTemplates?.flooring;
       const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.flooring.hoursPerSqm;
@@ -295,12 +277,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
         : `Carpet/laminate (${totalSqm}sqm)`;
       const source = tpl?.source || SOURCES.materials.flooring;
-      
       const hours = Math.round(totalSqm * hoursPerSqm);
       const labour = hours * hourlyRate;
       const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'flooring',
         name: 'Flooring',
@@ -312,8 +292,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // PLASTERING
+
     if (formData.needsPlastering) {
       const tpl = pricingTemplates?.plastering;
       const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.plastering.hoursPerSqm;
@@ -323,12 +302,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
         : `Materials (${totalSqm}sqm)`;
       const source = tpl?.source || SOURCES.materials.general;
-      
       const hours = Math.round(totalSqm * hoursPerSqm);
       const labour = hours * hourlyRate;
       const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'plastering',
         name: 'Plastering',
@@ -340,8 +317,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // REWIRE
+
     if (formData.needsRewire) {
       const tpl = pricingTemplates?.rewire;
       const hours = tpl?.hours?.[quality] ?? RATES.rewire.hours[quality];
@@ -349,10 +325,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materials = tpl?.materials?.[quality] ?? RATES.rewire.materials[quality];
       const materialsDetails = tpl?.materialsDetails || 'Cable, sockets, consumer unit';
       const source = tpl?.source || SOURCES.materials.general;
-      
       const labour = hours * hourlyRate;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'rewire',
         name: 'Electrical Rewire',
@@ -364,8 +338,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // HEATING
+
     if (formData.needsHeating) {
       const tpl = pricingTemplates?.heating;
       const hours = tpl?.hours?.[quality] ?? RATES.heating.hours[quality];
@@ -373,10 +346,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materials = tpl?.materials?.[quality] ?? RATES.heating.materials[quality];
       const materialsDetails = tpl?.materialsDetails || 'Boiler & radiators';
       const source = tpl?.source || SOURCES.materials.general;
-      
       const labour = hours * hourlyRate;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'heating',
         name: 'Heating System',
@@ -388,8 +359,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // WINDOWS
+
     if (formData.needsWindows) {
       const tpl = pricingTemplates?.windows;
       const hoursPerWindow = tpl?.hoursPerWindow?.[quality] ?? RATES.windows.hoursPerWindow[quality];
@@ -397,12 +367,10 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       const materialsPerWindow = tpl?.materialsPerWindow?.[quality] ?? RATES.windows.materialsPerWindow[quality];
       const materialsDetails = tpl?.materialsDetails || 'Double glazed units';
       const source = tpl?.source || SOURCES.materials.general;
-      
       const hours = hoursPerWindow * estimatedWindows;
       const labour = hours * hourlyRate;
       const materials = materialsPerWindow * estimatedWindows;
       const total = labour + materials;
-      
       roomBreakdown.push({
         id: 'windows',
         name: `Windows (~${estimatedWindows})`,
@@ -414,8 +382,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         source
       });
     }
-    
-    // Custom items
+
     customItems.forEach(item => {
       roomBreakdown.push({
         id: `custom-${item.id}`,
@@ -429,15 +396,14 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         isCustom: true
       });
     });
-    
+
     const subtotal = roomBreakdown.reduce((sum, room) => sum + room.total, 0);
     const contingency = Math.round(subtotal * 0.15);
     const total = subtotal + contingency;
-    
     const roundedTotal = Math.round(total / 5000) * 5000;
     const rangeMin = roundedTotal - 5000;
     const rangeMax = roundedTotal + 5000;
-    
+
     return {
       roomBreakdown,
       subtotal: Math.round(subtotal),
@@ -454,7 +420,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       alert('Please sign in to save quotes');
       return;
     }
-
     if (!isEditing && quotesCount >= maxQuotes) {
       if (isPremium) {
         alert('You\'ve reached the maximum of 10 saved quotes. Please delete some quotes to add new ones.');
@@ -463,10 +428,8 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       }
       return;
     }
-
     setSaving(true);
     setSaveSuccess(false);
-
     try {
       const quoteData = {
         userId: user.uid,
@@ -493,7 +456,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         isManuallyEdited,
         updatedAt: new Date().toISOString(),
       };
-
       if (isEditing) {
         await FirestoreWrapper.updateDoc('quotes', editingQuote.id, quoteData);
         setSaveSuccess(true);
@@ -525,7 +487,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       alert('Please enter item name and cost');
       return;
     }
-    
     setCustomItems(prev => [...prev, {
       id: Date.now(),
       name: newItemName,
@@ -533,7 +494,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       description: newItemDesc
     }]);
     setIsManuallyEdited(true);
-    
     setNewItemName('');
     setNewItemCost('');
     setNewItemDesc('');
@@ -546,6 +506,25 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
   const handleNext = () => setStep((s) => Math.min(s + 1, 3));
   const handleBack = () => setStep((s) => Math.max(s - 1, 1));
+
+  const renderSourceLinks = (source) => {
+    if (!source || !source.links || source.links.length === 0) return null;
+    return (
+      <div className="flex flex-wrap gap-2 mt-1">
+        {source.links.map((link, i) => (
+          
+            key={i}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-refurbly-navy hover:text-blue-800 underline"
+          >
+            {link.label} →
+          </a>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -587,7 +566,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Property Details</h2>
             <p className="text-slate-600 mb-6">Tell us about the property</p>
-
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Property Type</label>
@@ -604,7 +582,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   ))}
                 </div>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Bedrooms</label>
@@ -627,7 +604,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   </select>
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Property Location <span className="font-normal text-slate-500">(Optional)</span>
@@ -642,7 +618,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               </div>
               <div className="bg-green-50 rounded-xl p-4 border-2 border-dashed border-green-200">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Total Floor Area (sqm) <span className="font-normal text-slate-500">(Optional - we'll calculate if not provided)</span>
+                  Total Floor Area (sqm) <span className="font-normal text-slate-500">(Optional)</span>
                 </label>
                 <input
                   type="number"
@@ -651,9 +627,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-refurbly-navy focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                   placeholder="Auto: 75 sqm"
                 />
-                <p className="text-xs text-slate-500 mt-2">
-                  If not specified, we'll estimate based on your property type
-                </p>
+                <p className="text-xs text-slate-500 mt-2">If not specified, we'll estimate based on your property type</p>
               </div>
             </div>
           </div>
@@ -663,7 +637,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">What Needs Doing?</h2>
             <p className="text-slate-600 mb-6">Select all that apply</p>
-
             <div className="space-y-3">
               {[
                 { field: 'needsDecoration', label: 'Full Decoration', desc: 'Painting, decorating throughout' },
@@ -692,7 +665,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                 </label>
               ))}
             </div>
-
             <div className="mt-6 pt-6 border-t border-slate-200">
               <label className="block text-sm font-semibold text-slate-700 mb-3">Quality Level</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -751,7 +723,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   <div className="blur-md pointer-events-none select-none">
                     <div className="bg-gray-50 rounded-xl p-6 space-y-3">
                       <h3 className="text-lg font-bold text-gray-900 mb-4">Room-by-Room Breakdown:</h3>
-                      
                       {estimate.roomBreakdown.map((room) => (
                         <div key={room.id} className="bg-white rounded-lg p-4">
                           <div className="flex justify-between items-start mb-2">
@@ -761,11 +732,9 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                           <div className="text-sm text-gray-600 space-y-1">
                             <div>Labour: {room.labourDetails}</div>
                             <div>Materials: {room.materialsDetails}</div>
-                            <div className="text-xs text-gray-500 mt-2">Source: {room.source.text}</div>
                           </div>
                         </div>
                       ))}
-
                       <div className="bg-amber-100 rounded-lg p-4 mt-4">
                         <div className="flex justify-between">
                           <span className="font-bold">Contingency (15%)</span>
@@ -780,7 +749,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                       <div className="text-4xl mb-4">🔒</div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
                       <p className="text-gray-600 mb-4">See exact costs per room with labour rates, material costs, and source links</p>
-                      
                       {user ? (
                         Capacitor.getPlatform() === 'ios' ? (
                           <ApplePaymentButton />
@@ -833,25 +801,13 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                           <span>Materials: {room.materialsDetails}</span>
                           <span className="font-semibold">£{Math.round(room.materials).toLocaleString()}</span>
                         </div>
-                        <div className="text-xs mt-2 pt-2 border-t border-blue-200">
-                          <div className="text-blue-900 font-semibold mb-1">💡 Evidence:</div>
-                          <div className="text-blue-700">{room.source.text}</div>
-                          {room.source.links && room.source.links.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {room.source.links.map((link, i) => (
-                                
-                                  key={i}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-refurbly-navy hover:text-blue-800 underline"
-                                >
-                                  {link.label} →
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        {room.source && room.source.text && (
+                          <div className="text-xs mt-2 pt-2 border-t border-blue-200">
+                            <div className="text-blue-900 font-semibold mb-1">💡 Evidence:</div>
+                            <div className="text-blue-700">{room.source.text}</div>
+                            {renderSourceLinks(room.source)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -891,7 +847,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   {saving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? '💾 Update Quote' : '💾 Save Quote')}
                 </button>
               )}
-              
               {!isEditing && (
                 <button
                   type="button"
@@ -969,7 +924,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
               <div className="border-t border-slate-200 pt-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Custom Items</h3>
-                
                 {customItems.map((item) => (
                   <div key={item.id} className="flex justify-between items-center bg-slate-50 rounded-lg p-3 mb-2">
                     <div>
