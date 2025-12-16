@@ -84,13 +84,80 @@ const DEFAULT_TEMPLATES = {
       ],
     },
   },
+  plastering: {
+    id: 'plastering',
+    name: 'Plastering',
+    hourlyRate: { budget: 35, standard: 45, premium: 60 },
+    hoursPerSqm: 0.4,
+    materialsPerSqm: { budget: 12, standard: 16, premium: 24 },
+    materialsDetailsTemplate: 'Materials ({sqm}sqm)',
+    source: {
+      text: 'UK plastering rates 2025',
+      links: [
+        {
+          label: 'Checkatrade Plastering Guide',
+          url: 'https://www.checkatrade.com/blog/cost-guides/plastering-cost/',
+        },
+      ],
+    },
+  },
+  rewire: {
+    id: 'rewire',
+    name: 'Electrical Rewire',
+    hourlyRate: { budget: 40, standard: 45, premium: 55 },
+    hours: { budget: 50, standard: 60, premium: 80 },
+    materials: { budget: 1500, standard: 2500, premium: 4000 },
+    materialsDetails: 'Cable, sockets, consumer unit',
+    source: {
+      text: 'UK electrical rewiring costs 2025',
+      links: [
+        {
+          label: 'Checkatrade Rewiring Guide',
+          url: 'https://www.checkatrade.com/blog/cost-guides/rewiring-house-cost/',
+        },
+      ],
+    },
+  },
+  heating: {
+    id: 'heating',
+    name: 'Heating System',
+    hourlyRate: { budget: 35, standard: 40, premium: 50 },
+    hours: { budget: 40, standard: 50, premium: 60 },
+    materials: { budget: 2000, standard: 3500, premium: 6000 },
+    materialsDetails: 'Boiler & radiators',
+    source: {
+      text: 'UK heating system costs 2025',
+      links: [
+        {
+          label: 'Checkatrade Boiler Guide',
+          url: 'https://www.checkatrade.com/blog/cost-guides/new-boiler-cost/',
+        },
+      ],
+    },
+  },
+  windows: {
+    id: 'windows',
+    name: 'Windows',
+    hourlyRate: { budget: 30, standard: 35, premium: 45 },
+    hoursPerWindow: { budget: 2, standard: 3, premium: 4 },
+    materialsPerWindow: { budget: 300, standard: 500, premium: 800 },
+    materialsDetails: 'Double glazed units',
+    source: {
+      text: 'UK window replacement costs 2025',
+      links: [
+        {
+          label: 'Checkatrade Windows Guide',
+          url: 'https://www.checkatrade.com/blog/cost-guides/double-glazing-costs/',
+        },
+      ],
+    },
+  },
 }
 
-const TEMPLATE_ORDER = ['kitchen', 'bathrooms', 'decoration', 'flooring']
+const TEMPLATE_ORDER = ['kitchen', 'bathrooms', 'decoration', 'flooring', 'plastering', 'rewire', 'heating', 'windows']
 
 const QUALITY_LEVELS = ['budget', 'standard', 'premium']
 
-// Only allow this email to edit pricing (change to whatever you use)
 const ADMIN_EMAILS = ['dominick.m.mahon@gmail.com']
 
 export default function PricingEditor() {
@@ -115,7 +182,6 @@ export default function PricingEditor() {
           data[docSnap.id] = { id: docSnap.id, ...docSnap.data() }
         })
 
-        // Ensure we have all templates with sensible defaults
         const merged = {}
         TEMPLATE_ORDER.forEach((id) => {
           merged[id] = {
@@ -135,16 +201,12 @@ export default function PricingEditor() {
     loadTemplates()
   }, [])
 
-  const isAdmin =
-    user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
+  const isAdmin = user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
 
   const updateTemplateField = (id, field, value) => {
     setTemplates((prev) => ({
       ...prev,
-      [id]: {
-        ...prev[id],
-        [field]: value,
-      },
+      [id]: { ...prev[id], [field]: value },
     }))
   }
 
@@ -153,10 +215,7 @@ export default function PricingEditor() {
       const tpl = prev[id] || {}
       const parent = { ...(tpl[parentField] || {}) }
       parent[key] = value
-      return {
-        ...prev,
-        [id]: { ...tpl, [parentField]: parent },
-      }
+      return { ...prev, [id]: { ...tpl, [parentField]: parent } }
     })
   }
 
@@ -164,10 +223,7 @@ export default function PricingEditor() {
     setTemplates((prev) => {
       const tpl = prev[id] || {}
       const source = { ...(tpl.source || {}), text: value }
-      return {
-        ...prev,
-        [id]: { ...tpl, source },
-      }
+      return { ...prev, [id]: { ...tpl, source } }
     })
   }
 
@@ -178,10 +234,7 @@ export default function PricingEditor() {
       const links = [...(source.links || [])]
       links[index] = { ...(links[index] || {}), [field]: value }
       source.links = links
-      return {
-        ...prev,
-        [id]: { ...tpl, source },
-      }
+      return { ...prev, [id]: { ...tpl, source } }
     })
   }
 
@@ -191,10 +244,7 @@ export default function PricingEditor() {
       const source = { ...(tpl.source || {}) }
       const links = [...(source.links || []), { label: '', url: '' }]
       source.links = links
-      return {
-        ...prev,
-        [id]: { ...tpl, source },
-      }
+      return { ...prev, [id]: { ...tpl, source } }
     })
   }
 
@@ -205,10 +255,7 @@ export default function PricingEditor() {
       const links = [...(source.links || [])]
       links.splice(index, 1)
       source.links = links
-      return {
-        ...prev,
-        [id]: { ...tpl, source },
-      }
+      return { ...prev, [id]: { ...tpl, source } }
     })
   }
 
@@ -216,29 +263,15 @@ export default function PricingEditor() {
     setSaving(true)
     setSaveMessage('')
     try {
-      const templateList = TEMPLATE_ORDER.map((id) => templates[id]).filter(
-        Boolean
-      )
+      const templateList = TEMPLATE_ORDER.map((id) => templates[id]).filter(Boolean)
 
       for (const tpl of templateList) {
         const clean = { ...tpl }
-
-        // Clean links (remove empty ones)
         if (clean.source && Array.isArray(clean.source.links)) {
-          clean.source.links = clean.source.links.filter(
-            (l) => l.label && l.url
-          )
+          clean.source.links = clean.source.links.filter((l) => l.label && l.url)
         }
-
-        // Remove id from the stored doc (id is docId)
         const { id, ...payload } = clean
-
-        await FirestoreWrapper.setDoc(
-          'pricingTemplates',
-          id,
-          payload,
-          { merge: true }
-        )
+        await FirestoreWrapper.setDoc('pricingTemplates', id, payload, { merge: true })
       }
 
       setSaveMessage('✅ Saved pricing templates')
@@ -256,12 +289,8 @@ export default function PricingEditor() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <h1 className="text-2xl font-bold mb-2 text-slate-900">Admin Panel</h1>
-          <p className="text-slate-600 mb-4">
-            You need to be signed in to manage pricing.
-          </p>
-          <p className="text-sm text-slate-500">
-            Log in in the main app, then tap the profile menu → Admin.
-          </p>
+          <p className="text-slate-600 mb-4">You need to be signed in to manage pricing.</p>
+          <p className="text-sm text-slate-500">Log in in the main app, then tap the profile menu → Admin.</p>
         </div>
       </div>
     )
@@ -272,12 +301,9 @@ export default function PricingEditor() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <h1 className="text-2xl font-bold mb-2 text-slate-900">No Access</h1>
-          <p className="text-slate-600 mb-2">
-            This pricing admin is restricted.
-          </p>
+          <p className="text-slate-600 mb-2">This pricing admin is restricted.</p>
           <p className="text-sm text-slate-500">
-            You&apos;re signed in as <span className="font-mono">{user.email}</span> but only
-            whitelisted admin accounts can edit pricing.
+            You&apos;re signed in as <span className="font-mono">{user.email}</span> but only whitelisted admin accounts can edit pricing.
           </p>
         </div>
       </div>
@@ -300,9 +326,7 @@ export default function PricingEditor() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Pricing Admin</h1>
-          <p className="text-sm text-slate-600">
-            Signed in as <span className="font-mono">{user.email}</span>
-          </p>
+          <p className="text-sm text-slate-600">Signed in as <span className="font-mono">{user.email}</span></p>
         </div>
         <button
           onClick={saveAll}
@@ -314,9 +338,7 @@ export default function PricingEditor() {
       </div>
 
       {saveMessage && (
-        <div className="mb-4 rounded-xl px-4 py-3 text-sm bg-slate-900 text-slate-50">
-          {saveMessage}
-        </div>
+        <div className="mb-4 rounded-xl px-4 py-3 text-sm bg-slate-900 text-slate-50">{saveMessage}</div>
       )}
 
       <div className="space-y-8">
@@ -324,62 +346,45 @@ export default function PricingEditor() {
           const tpl = templates[id]
           if (!tpl) return null
 
+          const isPerSqm = id === 'decoration' || id === 'flooring' || id === 'plastering'
+          const isFixedHours = id === 'kitchen' || id === 'rewire' || id === 'heating'
+          const isPerBathroom = id === 'bathrooms'
+          const isPerWindow = id === 'windows'
+
           return (
-            <div
-              key={id}
-              className="bg-white rounded-2xl shadow-md border border-slate-200 p-6"
-            >
+            <div key={id} className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    {tpl.name || id}
-                  </h2>
+                  <h2 className="text-xl font-bold text-slate-900">{tpl.name || id}</h2>
                   <p className="text-xs text-slate-500 uppercase tracking-wide">
                     Template ID: <span className="font-mono">{id}</span>
                   </p>
                 </div>
               </div>
 
-              {/* Name */}
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Display Name
-                </label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Display Name</label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                   value={tpl.name || ''}
-                  onChange={(e) =>
-                    updateTemplateField(id, 'name', e.target.value)
-                  }
+                  onChange={(e) => updateTemplateField(id, 'name', e.target.value)}
                   placeholder="e.g. Kitchen"
                 />
               </div>
 
-              {/* LABOUR & MATERIALS */}
               <div className="grid md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                    Labour – hourly rate (per quality)
-                  </h3>
+                  <h3 className="text-sm font-semibold text-slate-800 mb-2">Labour – hourly rate (per quality)</h3>
                   <div className="space-y-2">
                     {QUALITY_LEVELS.map((q) => (
                       <div key={q} className="flex items-center gap-3">
-                        <div className="w-20 text-sm capitalize text-slate-600">
-                          {q}
-                        </div>
+                        <div className="w-20 text-sm capitalize text-slate-600">{q}</div>
                         <input
                           type="number"
                           className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                           value={tpl.hourlyRate?.[q] ?? ''}
-                          onChange={(e) =>
-                            updateNestedMap(
-                              id,
-                              'hourlyRate',
-                              q,
-                              Number(e.target.value) || 0
-                            )
-                          }
+                          onChange={(e) => updateNestedMap(id, 'hourlyRate', q, Number(e.target.value) || 0)}
                           placeholder="£ / hr"
                         />
                       </div>
@@ -387,48 +392,26 @@ export default function PricingEditor() {
                   </div>
                 </div>
 
-                {/* PER-TEMPLATE SPECIAL FIELDS */}
                 <div>
-                  {id === 'kitchen' && (
+                  {isFixedHours && (
                     <>
-                      <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                        Kitchen: fixed hours & materials per quality
-                      </h3>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-2">{tpl.name}: fixed hours & materials</h3>
                       <div className="space-y-2 mb-4">
                         {QUALITY_LEVELS.map((q) => (
-                          <div
-                            key={q}
-                            className="grid grid-cols-[80px,1fr,1fr] gap-2 items-center"
-                          >
-                            <div className="text-sm capitalize text-slate-600">
-                              {q}
-                            </div>
+                          <div key={q} className="grid grid-cols-[80px,1fr,1fr] gap-2 items-center">
+                            <div className="text-sm capitalize text-slate-600">{q}</div>
                             <input
                               type="number"
                               className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                               value={tpl.hours?.[q] ?? ''}
-                              onChange={(e) =>
-                                updateNestedMap(
-                                  id,
-                                  'hours',
-                                  q,
-                                  Number(e.target.value) || 0
-                                )
-                              }
+                              onChange={(e) => updateNestedMap(id, 'hours', q, Number(e.target.value) || 0)}
                               placeholder="Hours"
                             />
                             <input
                               type="number"
                               className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                               value={tpl.materials?.[q] ?? ''}
-                              onChange={(e) =>
-                                updateNestedMap(
-                                  id,
-                                  'materials',
-                                  q,
-                                  Number(e.target.value) || 0
-                                )
-                              }
+                              onChange={(e) => updateNestedMap(id, 'materials', q, Number(e.target.value) || 0)}
                               placeholder="£ Materials"
                             />
                           </div>
@@ -437,47 +420,26 @@ export default function PricingEditor() {
                     </>
                   )}
 
-                  {id === 'bathrooms' && (
+                  {isPerBathroom && (
                     <>
-                      <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                        Bathrooms: per bathroom hours & materials
-                      </h3>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-2">Per bathroom hours & materials</h3>
                       <div className="space-y-2 mb-4">
                         {QUALITY_LEVELS.map((q) => (
-                          <div
-                            key={q}
-                            className="grid grid-cols-[80px,1fr,1fr] gap-2 items-center"
-                          >
-                            <div className="text-sm capitalize text-slate-600">
-                              {q}
-                            </div>
+                          <div key={q} className="grid grid-cols-[80px,1fr,1fr] gap-2 items-center">
+                            <div className="text-sm capitalize text-slate-600">{q}</div>
                             <input
                               type="number"
                               className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                               value={tpl.hoursPerBathroom?.[q] ?? ''}
-                              onChange={(e) =>
-                                updateNestedMap(
-                                  id,
-                                  'hoursPerBathroom',
-                                  q,
-                                  Number(e.target.value) || 0
-                                )
-                              }
-                              placeholder="Hours per bathroom"
+                              onChange={(e) => updateNestedMap(id, 'hoursPerBathroom', q, Number(e.target.value) || 0)}
+                              placeholder="Hrs/bathroom"
                             />
                             <input
                               type="number"
                               className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                               value={tpl.materialsPerBathroom?.[q] ?? ''}
-                              onChange={(e) =>
-                                updateNestedMap(
-                                  id,
-                                  'materialsPerBathroom',
-                                  q,
-                                  Number(e.target.value) || 0
-                                )
-                              }
-                              placeholder="£ per bathroom"
+                              onChange={(e) => updateNestedMap(id, 'materialsPerBathroom', q, Number(e.target.value) || 0)}
+                              placeholder="£/bathroom"
                             />
                           </div>
                         ))}
@@ -485,51 +447,57 @@ export default function PricingEditor() {
                     </>
                   )}
 
-                  {(id === 'decoration' || id === 'flooring') && (
+                  {isPerSqm && (
                     <>
-                      <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                        {tpl.name}: per m² configuration
-                      </h3>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-2">{tpl.name}: per m² configuration</h3>
                       <div className="mb-3">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
-                          Hours per m²
-                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Hours per m²</label>
                         <input
                           type="number"
+                          step="0.1"
                           className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                           value={tpl.hoursPerSqm ?? ''}
-                          onChange={(e) =>
-                            updateTemplateField(
-                              id,
-                              'hoursPerSqm',
-                              Number(e.target.value) || 0
-                            )
-                          }
+                          onChange={(e) => updateTemplateField(id, 'hoursPerSqm', Number(e.target.value) || 0)}
                           placeholder="e.g. 0.5"
                         />
                       </div>
                       <div className="space-y-2">
                         {QUALITY_LEVELS.map((q) => (
-                          <div
-                            key={q}
-                            className="flex items-center gap-3 mb-1"
-                          >
-                            <div className="w-20 text-sm capitalize text-slate-600">
-                              {q}
-                            </div>
+                          <div key={q} className="flex items-center gap-3">
+                            <div className="w-20 text-sm capitalize text-slate-600">{q}</div>
                             <input
                               type="number"
                               className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                               value={tpl.materialsPerSqm?.[q] ?? ''}
-                              onChange={(e) =>
-                                updateNestedMap(
-                                  id,
-                                  'materialsPerSqm',
-                                  q,
-                                  Number(e.target.value) || 0
-                                )
-                              }
-                              placeholder="£ materials per m²"
+                              onChange={(e) => updateNestedMap(id, 'materialsPerSqm', q, Number(e.target.value) || 0)}
+                              placeholder="£/m²"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {isPerWindow && (
+                    <>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-2">Per window hours & materials</h3>
+                      <div className="space-y-2 mb-4">
+                        {QUALITY_LEVELS.map((q) => (
+                          <div key={q} className="grid grid-cols-[80px,1fr,1fr] gap-2 items-center">
+                            <div className="text-sm capitalize text-slate-600">{q}</div>
+                            <input
+                              type="number"
+                              className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
+                              value={tpl.hoursPerWindow?.[q] ?? ''}
+                              onChange={(e) => updateNestedMap(id, 'hoursPerWindow', q, Number(e.target.value) || 0)}
+                              placeholder="Hrs/window"
+                            />
+                            <input
+                              type="number"
+                              className="px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
+                              value={tpl.materialsPerWindow?.[q] ?? ''}
+                              onChange={(e) => updateNestedMap(id, 'materialsPerWindow', q, Number(e.target.value) || 0)}
+                              placeholder="£/window"
                             />
                           </div>
                         ))}
@@ -539,86 +507,58 @@ export default function PricingEditor() {
                 </div>
               </div>
 
-              {/* MATERIAL DETAILS / TEMPLATE */}
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Materials description / template
-                </label>
-                {id === 'decoration' || id === 'flooring' ? (
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
-                    value={tpl.materialsDetailsTemplate || ''}
-                    onChange={(e) =>
-                      updateTemplateField(
-                        id,
-                        'materialsDetailsTemplate',
-                        e.target.value
-                      )
-                    }
-                    placeholder="e.g. Paint & materials ({sqm}sqm)"
-                  />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Materials description</label>
+                {isPerSqm ? (
+                  <>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
+                      value={tpl.materialsDetailsTemplate || ''}
+                      onChange={(e) => updateTemplateField(id, 'materialsDetailsTemplate', e.target.value)}
+                      placeholder="e.g. Paint & materials ({sqm}sqm)"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Use <code>{'{sqm}'}</code> to insert floor area.</p>
+                  </>
                 ) : (
                   <input
                     type="text"
                     className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                     value={tpl.materialsDetails || ''}
-                    onChange={(e) =>
-                      updateTemplateField(id, 'materialsDetails', e.target.value)
-                    }
+                    onChange={(e) => updateTemplateField(id, 'materialsDetails', e.target.value)}
                     placeholder="e.g. Units & appliances"
                   />
                 )}
-                {id === 'decoration' || id === 'flooring' ? (
-                  <p className="text-xs text-slate-500 mt-1">
-                    You can use <code>{'{sqm}'}</code> in the text; it will be
-                    replaced with the actual floor area.
-                  </p>
-                ) : null}
               </div>
 
-              {/* SOURCE / LINKS */}
               <div className="mt-6 border-t border-slate-200 pt-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                  Evidence / sources
-                </h3>
-
+                <h3 className="text-sm font-semibold text-slate-800 mb-2">Evidence / sources</h3>
                 <div className="mb-3">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Source summary text
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Source summary</label>
                   <input
                     type="text"
                     className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                     value={tpl.source?.text || ''}
                     onChange={(e) => updateSourceText(id, e.target.value)}
-                    placeholder="e.g. Based on Checkatrade & Knight Frank 2024 guides"
+                    placeholder="e.g. Based on Checkatrade 2024 guides"
                   />
                 </div>
-
                 <div className="space-y-2">
                   {(tpl.source?.links || []).map((link, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
-                    >
+                    <div key={index} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                       <input
                         type="text"
                         className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
-                        placeholder="Label (e.g. Checkatrade Kitchen Guide)"
+                        placeholder="Label"
                         value={link.label || ''}
-                        onChange={(e) =>
-                          updateSourceLink(id, index, 'label', e.target.value)
-                        }
+                        onChange={(e) => updateSourceLink(id, index, 'label', e.target.value)}
                       />
                       <input
                         type="text"
                         className="flex-[2] px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-600 outline-none"
                         placeholder="URL"
                         value={link.url || ''}
-                        onChange={(e) =>
-                          updateSourceLink(id, index, 'url', e.target.value)
-                        }
+                        onChange={(e) => updateSourceLink(id, index, 'url', e.target.value)}
                       />
                       <button
                         type="button"
@@ -630,7 +570,6 @@ export default function PricingEditor() {
                     </div>
                   ))}
                 </div>
-
                 <button
                   type="button"
                   onClick={() => addSourceLink(id)}
