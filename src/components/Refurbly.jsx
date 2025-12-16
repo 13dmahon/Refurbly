@@ -52,6 +52,7 @@ const RATES = {
   windows: {
     hourlyRate: { budget: 30, standard: 35, premium: 45 },
     hoursPerWindow: { budget: 2, standard: 3, premium: 4 },
+    materialsPerWindow: { budget: 300, standard: 500, premium: 800 }
   },
   protection: {
     dustSheets: { perSqm: 0.5, perRoom: 15 },
@@ -112,7 +113,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
   const [newItemDesc, setNewItemDesc] = useState('');
   const isEditing = !!editingQuote;
 
-  // 🔥 NEW: Load pricing templates from Firestore
   const [pricingTemplates, setPricingTemplates] = useState(null);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   
@@ -138,7 +138,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     manualRoomSqm: {},
   });
 
-  // 🔥 Load pricing templates from Firestore on mount
   useEffect(() => {
     const loadTemplates = async () => {
       try {
@@ -208,10 +207,9 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     
     let roomBreakdown = [];
     
-    // 🔥 KITCHEN: Use Firestore template if available
+    // KITCHEN
     if (formData.needsKitchen) {
       const tpl = pricingTemplates?.kitchen;
-      
       const hours = tpl?.hours?.[quality] ?? RATES.kitchen.hours[quality];
       const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.kitchen.hourlyRate[quality];
       const materials = tpl?.materials?.[quality] ?? RATES.kitchen.materials[quality];
@@ -233,10 +231,9 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       });
     }
     
-    // 🔥 BATHROOMS: Use Firestore template if available
+    // BATHROOMS
     if (formData.needsBathroom) {
       const tpl = pricingTemplates?.bathrooms;
-      
       const hoursPerBathroom = tpl?.hoursPerBathroom?.[quality] ?? RATES.bathroom.hoursPerBathroom[quality];
       const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.bathroom.hourlyRate[quality];
       const materialsPerBathroom = tpl?.materialsPerBathroom?.[quality] ?? RATES.bathroom.materialsPerBathroom[quality];
@@ -260,10 +257,9 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       });
     }
     
-    // 🔥 DECORATION: Use Firestore template if available
+    // DECORATION
     if (formData.needsDecoration) {
       const tpl = pricingTemplates?.decoration;
-      
       const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.decoration.hoursPerSqm;
       const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.decoration.hourlyRate[quality];
       const materialsPerSqm = tpl?.materialsPerSqm?.[quality] ?? RATES.decoration.materialsPerSqm[quality];
@@ -289,10 +285,9 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       });
     }
     
-    // 🔥 FLOORING: Use Firestore template if available
+    // FLOORING
     if (formData.needsFlooring) {
       const tpl = pricingTemplates?.flooring;
-      
       const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.flooring.hoursPerSqm;
       const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.flooring.hourlyRate[quality];
       const materialsPerSqm = tpl?.materialsPerSqm?.[quality] ?? RATES.flooring.materialsPerSqm[quality];
@@ -318,74 +313,109 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
       });
     }
     
-    // Rest use hardcoded RATES (plastering, rewire, heating, windows)
+    // PLASTERING
     if (formData.needsPlastering) {
-      const hours = Math.round(totalSqm * RATES.plastering.hoursPerSqm);
-      const labour = hours * RATES.plastering.hourlyRate[quality];
-      const materials = totalSqm * RATES.plastering.materialsPerSqm[quality];
+      const tpl = pricingTemplates?.plastering;
+      const hoursPerSqm = tpl?.hoursPerSqm ?? RATES.plastering.hoursPerSqm;
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.plastering.hourlyRate[quality];
+      const materialsPerSqm = tpl?.materialsPerSqm?.[quality] ?? RATES.plastering.materialsPerSqm[quality];
+      const materialsDetails = tpl?.materialsDetailsTemplate
+        ? tpl.materialsDetailsTemplate.replace('{sqm}', totalSqm)
+        : `Materials (${totalSqm}sqm)`;
+      const source = tpl?.source || SOURCES.materials.general;
+      
+      const hours = Math.round(totalSqm * hoursPerSqm);
+      const labour = hours * hourlyRate;
+      const materials = totalSqm * materialsPerSqm;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'plastering',
         name: 'Plastering',
         labour,
-        labourDetails: `${hours} hrs @ £${RATES.plastering.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: `Materials (${totalSqm}sqm)`,
+        materialsDetails,
         total: adjustments.plastering || total,
-        source: SOURCES.materials.general
+        source
       });
     }
     
+    // REWIRE
     if (formData.needsRewire) {
-      const labour = RATES.rewire.hours[quality] * RATES.rewire.hourlyRate[quality];
-      const materials = RATES.rewire.materials[quality];
+      const tpl = pricingTemplates?.rewire;
+      const hours = tpl?.hours?.[quality] ?? RATES.rewire.hours[quality];
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.rewire.hourlyRate[quality];
+      const materials = tpl?.materials?.[quality] ?? RATES.rewire.materials[quality];
+      const materialsDetails = tpl?.materialsDetails || 'Cable, sockets, consumer unit';
+      const source = tpl?.source || SOURCES.materials.general;
+      
+      const labour = hours * hourlyRate;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'rewire',
         name: 'Electrical Rewire',
         labour,
-        labourDetails: `${RATES.rewire.hours[quality]} hrs @ £${RATES.rewire.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: 'Cable, sockets, consumer unit',
+        materialsDetails,
         total: adjustments.rewire || total,
-        source: SOURCES.materials.general
+        source
       });
     }
     
+    // HEATING
     if (formData.needsHeating) {
-      const labour = RATES.heating.hours[quality] * RATES.heating.hourlyRate[quality];
-      const materials = RATES.heating.materials[quality];
+      const tpl = pricingTemplates?.heating;
+      const hours = tpl?.hours?.[quality] ?? RATES.heating.hours[quality];
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.heating.hourlyRate[quality];
+      const materials = tpl?.materials?.[quality] ?? RATES.heating.materials[quality];
+      const materialsDetails = tpl?.materialsDetails || 'Boiler & radiators';
+      const source = tpl?.source || SOURCES.materials.general;
+      
+      const labour = hours * hourlyRate;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'heating',
         name: 'Heating System',
         labour,
-        labourDetails: `${RATES.heating.hours[quality]} hrs @ £${RATES.heating.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: 'Boiler & radiators',
+        materialsDetails,
         total: adjustments.heating || total,
-        source: SOURCES.materials.general
+        source
       });
     }
     
+    // WINDOWS
     if (formData.needsWindows) {
-      const hours = RATES.windows.hoursPerWindow[quality] * estimatedWindows;
-      const labour = hours * RATES.windows.hourlyRate[quality];
-      const materials = RATES.windows.materialsPerWindow[quality] * estimatedWindows;
+      const tpl = pricingTemplates?.windows;
+      const hoursPerWindow = tpl?.hoursPerWindow?.[quality] ?? RATES.windows.hoursPerWindow[quality];
+      const hourlyRate = tpl?.hourlyRate?.[quality] ?? RATES.windows.hourlyRate[quality];
+      const materialsPerWindow = tpl?.materialsPerWindow?.[quality] ?? RATES.windows.materialsPerWindow[quality];
+      const materialsDetails = tpl?.materialsDetails || 'Double glazed units';
+      const source = tpl?.source || SOURCES.materials.general;
+      
+      const hours = hoursPerWindow * estimatedWindows;
+      const labour = hours * hourlyRate;
+      const materials = materialsPerWindow * estimatedWindows;
       const total = labour + materials;
+      
       roomBreakdown.push({
         id: 'windows',
         name: `Windows (~${estimatedWindows})`,
         labour,
-        labourDetails: `${hours} hrs @ £${RATES.windows.hourlyRate[quality]}/hr`,
+        labourDetails: `${hours} hrs @ £${hourlyRate}/hr`,
         materials,
-        materialsDetails: 'Double glazed units',
+        materialsDetails,
         total: adjustments.windows || total,
-        source: SOURCES.materials.general
+        source
       });
     }
     
-    // Add custom items
+    // Custom items
     customItems.forEach(item => {
       roomBreakdown.push({
         id: `custom-${item.id}`,
@@ -404,7 +434,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     const contingency = Math.round(subtotal * 0.15);
     const total = subtotal + contingency;
     
-    // Round to nearest £5k for free users
     const roundedTotal = Math.round(total / 5000) * 5000;
     const rangeMin = roundedTotal - 5000;
     const rangeMax = roundedTotal + 5000;
@@ -505,7 +534,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     }]);
     setIsManuallyEdited(true);
     
-    // Reset form
     setNewItemName('');
     setNewItemCost('');
     setNewItemDesc('');
@@ -711,7 +739,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
 
             {!isPremium ? (
               <>
-                {/* FREE VERSION - ROUNDED TO £5K */}
                 <div className="bg-gradient-to-br from-refurbly-navy to-refurbly-charcoal rounded-xl p-6 text-white shadow-lg mb-6">
                   <div className="text-sm opacity-90 mb-1">Estimated Cost Range</div>
                   <div className="text-4xl font-bold">
@@ -720,7 +747,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   <div className="text-sm opacity-75 mt-2">Based on 30+ UK trade quotes</div>
                 </div>
 
-                {/* BLURRED ROOM BREAKDOWN */}
                 <div className="relative mb-6">
                   <div className="blur-md pointer-events-none select-none">
                     <div className="bg-gray-50 rounded-xl p-6 space-y-3">
@@ -749,14 +775,12 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                     </div>
                   </div>
 
-                  {/* UNLOCK OVERLAY */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="bg-white rounded-xl shadow-2xl p-6 text-center max-w-sm mx-4">
                       <div className="text-4xl mb-4">🔒</div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock Full Breakdown</h3>
                       <p className="text-gray-600 mb-4">See exact costs per room with labour rates, material costs, and source links</p>
                       
-                     
                       {user ? (
                         Capacitor.getPlatform() === 'ios' ? (
                           <ApplePaymentButton />
@@ -772,7 +796,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
               </>
             ) : (
               <>
-                {/* PREMIUM VERSION - EXACT WITH EDITING */}
                 <div className="bg-gradient-to-br from-refurbly-navy to-refurbly-charcoal rounded-xl p-6 text-white shadow-lg mb-6">
                   <div className="text-sm opacity-90 mb-1">Total Estimated Cost</div>
                   <div className="text-4xl font-bold">£{estimate.total.toLocaleString()}</div>
@@ -794,7 +817,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   </div>
                 </div>
 
-                {/* ROOM-BY-ROOM BREAKDOWN */}
                 <div className="space-y-3 mb-6">
                   {estimate.roomBreakdown.map((room) => (
                     <div key={room.id} className="bg-blue-50 rounded-xl p-4">
@@ -817,7 +839,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                           {room.source.links && room.source.links.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-1">
                               {room.source.links.map((link, i) => (
-                                  <a
+                                
                                   key={i}
                                   href={link.url}
                                   target="_blank"
@@ -905,7 +927,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
         )}
       </div>
 
-      {/* ADJUST COSTS MODAL WITH INLINE CUSTOM ITEM FORM */}
       {showAdjustModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -946,7 +967,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                 </div>
               ))}
 
-              {/* CUSTOM ITEMS SECTION */}
               <div className="border-t border-slate-200 pt-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Custom Items</h3>
                 
@@ -968,7 +988,6 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
                   </div>
                 ))}
 
-                {/* INLINE ADD FORM */}
                 {!showAddItemForm ? (
                   <button
                     onClick={() => setShowAddItemForm(true)}
