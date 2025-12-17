@@ -204,7 +204,7 @@ export default function Refurbly({ onQuoteSaved, editingQuote, quotesCount, maxQ
     const propertyType = formData.propertyType;
     const quality = formData.quality;
     
-    const totalSqm = AUTO_SQM[propertyType]?.[bedrooms] || 75;
+    const totalSqm = formData.manualTotalSqm ? parseInt(formData.manualTotalSqm) : (AUTO_SQM[propertyType]?.[bedrooms] || 75);
     const estimatedWindows = bedrooms * 2 + 2;
     
     let roomBreakdown = [];
